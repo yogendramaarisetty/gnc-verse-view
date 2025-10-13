@@ -1,0 +1,416 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import {
+  Box,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  ListItemIcon,
+  Collapse,
+  Typography,
+  Badge,
+  Divider,
+  CardMedia,
+} from "@mui/material"
+import LanguageIcon from "@mui/icons-material/Language"
+import TrendingUpIcon from "@mui/icons-material/TrendingUp"
+import StarIcon from "@mui/icons-material/Star"
+import HistoryIcon from "@mui/icons-material/History"
+import NewReleasesIcon from "@mui/icons-material/NewReleases"
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
+import MicIcon from "@mui/icons-material/Mic"
+import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay"
+import ExpandLess from "@mui/icons-material/ExpandLess"
+import ExpandMore from "@mui/icons-material/ExpandMore"
+import type { Song } from "@/lib/types"
+import { LANGUAGES } from "@/lib/song-data"
+import { storage } from "@/lib/storage"
+
+export type ViewMode =
+  | "all"
+  | "trending"
+  | "favorites"
+  | "recent"
+  | "new-releases"
+  | "all-time-hits"
+  | "top-artists"
+  | "playlists"
+
+interface LanguageSidebarProps {
+  selectedLanguage: string
+  onLanguageChange: (language: string) => void
+  viewMode: ViewMode
+  onViewModeChange: (mode: ViewMode) => void
+  songs: Song[]
+  favoritesCount: number
+  recentCount: number
+  playlistsCount: number
+  onSelectSong: (song: Song) => void
+}
+
+export function LanguageSidebar({
+  selectedLanguage,
+  onLanguageChange,
+  viewMode,
+  onViewModeChange,
+  songs,
+  favoritesCount,
+  recentCount,
+  playlistsCount,
+  onSelectSong,
+}: LanguageSidebarProps) {
+  const [languagesOpen, setLanguagesOpen] = useState(true)
+  const [recentSongs, setRecentSongs] = useState<Song[]>([])
+
+  useEffect(() => {
+    const recentIds = storage.getRecentlyViewed().slice(0, 4)
+    const recent = recentIds.map((id) => songs.find((s) => s.id === id)).filter(Boolean) as Song[]
+    setRecentSongs(recent)
+  }, [songs, recentCount])
+
+  const getSongCountByLanguage = (lang: string) => {
+    return songs.filter((s) => s.language === lang).length
+  }
+
+  const trendingCount = songs.filter((s) => s.trending).length
+  const newReleasesCount = songs.filter((s) => {
+    const releaseDate = new Date(s.releaseDate)
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    return releaseDate > thirtyDaysAgo
+  }).length
+
+  return (
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column", bgcolor: "rgb(20, 20, 20)" }}>
+      <Box sx={{ p: 2, borderBottom: "1px solid rgb(38, 38, 38)" }}>
+        <Typography variant="h6" sx={{ color: "rgb(250, 250, 250)", fontWeight: 600, fontSize: "1.1rem" }}>
+          Verse View
+        </Typography>
+        <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+          Christian Songbook
+        </Typography>
+      </Box>
+
+      <Box sx={{ flex: 1, overflow: "auto" }}>
+        <List dense disablePadding>
+          {/* Quick Access */}
+          <ListItem disablePadding>
+            <ListItemButton
+              selected={viewMode === "trending"}
+              onClick={() => onViewModeChange("trending")}
+              sx={{
+                py: 1,
+                "&.Mui-selected": {
+                  bgcolor: "rgb(38, 38, 38)",
+                  borderLeft: "3px solid rgb(59, 130, 246)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <TrendingUpIcon sx={{ fontSize: "1.2rem", color: "rgb(239, 68, 68)" }} />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Badge badgeContent={trendingCount} color="error" sx={{ "& .MuiBadge-badge": { right: -12 } }}>
+                    <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
+                      Trending Now
+                    </Typography>
+                  </Badge>
+                }
+              />
+            </ListItemButton>
+          </ListItem>
+
+          <ListItem disablePadding>
+            <ListItemButton
+              selected={viewMode === "favorites"}
+              onClick={() => onViewModeChange("favorites")}
+              sx={{
+                py: 1,
+                "&.Mui-selected": {
+                  bgcolor: "rgb(38, 38, 38)",
+                  borderLeft: "3px solid rgb(59, 130, 246)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <StarIcon sx={{ fontSize: "1.2rem", color: "rgb(234, 179, 8)" }} />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Badge badgeContent={favoritesCount} color="warning" sx={{ "& .MuiBadge-badge": { right: -12 } }}>
+                    <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
+                      My Favorites
+                    </Typography>
+                  </Badge>
+                }
+              />
+            </ListItemButton>
+          </ListItem>
+
+          <ListItem disablePadding>
+            <ListItemButton
+              selected={viewMode === "recent"}
+              onClick={() => onViewModeChange("recent")}
+              sx={{
+                py: 1,
+                "&.Mui-selected": {
+                  bgcolor: "rgb(38, 38, 38)",
+                  borderLeft: "3px solid rgb(59, 130, 246)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <HistoryIcon sx={{ fontSize: "1.2rem", color: "rgb(163, 163, 163)" }} />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Badge badgeContent={recentCount} color="default" sx={{ "& .MuiBadge-badge": { right: -12 } }}>
+                    <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
+                      Recently Viewed
+                    </Typography>
+                  </Badge>
+                }
+              />
+            </ListItemButton>
+          </ListItem>
+
+          {recentSongs.length > 0 && (
+            <Box sx={{ px: 2, py: 1 }}>
+              <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", mb: 1, display: "block" }}>
+                Quick Access
+              </Typography>
+              <List dense disablePadding>
+                {recentSongs.map((song) => (
+                  <ListItem key={song.id} disablePadding sx={{ mb: 0.5 }}>
+                    <ListItemButton
+                      onClick={() => onSelectSong(song)}
+                      sx={{
+                        py: 0.5,
+                        px: 1,
+                        borderRadius: 1,
+                        display: "flex",
+                        gap: 1,
+                        "&:hover": {
+                          bgcolor: "rgb(38, 38, 38)",
+                        },
+                      }}
+                    >
+                      <CardMedia
+                        component="img"
+                        image={song.thumbnail}
+                        alt={song.title}
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 0.5,
+                          objectFit: "cover",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <ListItemText
+                        primary={
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: "rgb(250, 250, 250)",
+                              fontSize: "0.75rem",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {song.title}
+                          </Typography>
+                        }
+                        secondary={
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: "rgb(163, 163, 163)",
+                              fontSize: "0.65rem",
+                            }}
+                          >
+                            {song.artist.name}
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          )}
+
+          <Divider sx={{ my: 1, borderColor: "rgb(38, 38, 38)" }} />
+
+          <ListItem disablePadding>
+            <ListItemButton
+              selected={viewMode === "new-releases"}
+              onClick={() => onViewModeChange("new-releases")}
+              sx={{
+                py: 1,
+                "&.Mui-selected": {
+                  bgcolor: "rgb(38, 38, 38)",
+                  borderLeft: "3px solid rgb(59, 130, 246)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <NewReleasesIcon sx={{ fontSize: "1.2rem", color: "rgb(34, 197, 94)" }} />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Badge badgeContent={newReleasesCount} color="success" sx={{ "& .MuiBadge-badge": { right: -12 } }}>
+                    <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
+                      New Releases
+                    </Typography>
+                  </Badge>
+                }
+              />
+            </ListItemButton>
+          </ListItem>
+
+          <ListItem disablePadding>
+            <ListItemButton
+              selected={viewMode === "all-time-hits"}
+              onClick={() => onViewModeChange("all-time-hits")}
+              sx={{
+                py: 1,
+                "&.Mui-selected": {
+                  bgcolor: "rgb(38, 38, 38)",
+                  borderLeft: "3px solid rgb(59, 130, 246)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <EmojiEventsIcon sx={{ fontSize: "1.2rem", color: "rgb(234, 179, 8)" }} />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
+                    All Time Hits
+                  </Typography>
+                }
+              />
+            </ListItemButton>
+          </ListItem>
+
+          <ListItem disablePadding>
+            <ListItemButton
+              selected={viewMode === "top-artists"}
+              onClick={() => onViewModeChange("top-artists")}
+              sx={{
+                py: 1,
+                "&.Mui-selected": {
+                  bgcolor: "rgb(38, 38, 38)",
+                  borderLeft: "3px solid rgb(59, 130, 246)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <MicIcon sx={{ fontSize: "1.2rem", color: "rgb(168, 85, 247)" }} />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
+                    Top Worshipers
+                  </Typography>
+                }
+              />
+            </ListItemButton>
+          </ListItem>
+
+          <ListItem disablePadding>
+            <ListItemButton
+              selected={viewMode === "playlists"}
+              onClick={() => onViewModeChange("playlists")}
+              sx={{
+                py: 1,
+                "&.Mui-selected": {
+                  bgcolor: "rgb(38, 38, 38)",
+                  borderLeft: "3px solid rgb(59, 130, 246)",
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <PlaylistPlayIcon sx={{ fontSize: "1.2rem", color: "rgb(59, 130, 246)" }} />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Badge badgeContent={playlistsCount} color="primary" sx={{ "& .MuiBadge-badge": { right: -12 } }}>
+                    <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
+                      My Playlists
+                    </Typography>
+                  </Badge>
+                }
+              />
+            </ListItemButton>
+          </ListItem>
+
+          <Divider sx={{ my: 1, borderColor: "rgb(38, 38, 38)" }} />
+
+          {/* Languages */}
+          <ListItem disablePadding>
+            <ListItemButton onClick={() => setLanguagesOpen(!languagesOpen)} sx={{ py: 1 }}>
+              <ListItemIcon sx={{ minWidth: 36 }}>
+                <LanguageIcon sx={{ fontSize: "1.2rem", color: "rgb(163, 163, 163)" }} />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}>
+                    Browse by Language
+                  </Typography>
+                }
+              />
+              {languagesOpen ? (
+                <ExpandLess sx={{ color: "rgb(163, 163, 163)" }} />
+              ) : (
+                <ExpandMore sx={{ color: "rgb(163, 163, 163)" }} />
+              )}
+            </ListItemButton>
+          </ListItem>
+
+          <Collapse in={languagesOpen} timeout="auto" unmountOnExit>
+            <List dense disablePadding>
+              {LANGUAGES.map((lang) => (
+                <ListItem key={lang} disablePadding>
+                  <ListItemButton
+                    selected={selectedLanguage === lang && viewMode === "all"}
+                    onClick={() => {
+                      onLanguageChange(lang)
+                      onViewModeChange("all")
+                    }}
+                    sx={{
+                      pl: 6,
+                      py: 0.75,
+                      "&.Mui-selected": {
+                        bgcolor: "rgb(38, 38, 38)",
+                        borderLeft: "3px solid rgb(59, 130, 246)",
+                      },
+                    }}
+                  >
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontSize: "0.875rem" }}>
+                            {lang}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem" }}>
+                            {getSongCountByLanguage(lang)}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          </Collapse>
+        </List>
+      </Box>
+    </Box>
+  )
+}
