@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Box, AppBar, Toolbar, Typography, IconButton, Drawer, useMediaQuery, useTheme } from "@mui/material"
+import { Box, AppBar, Toolbar, Typography, IconButton, Drawer, useMediaQuery, useTheme, CircularProgress } from "@mui/material"
 import MenuIcon from "@mui/icons-material/Menu"
 import MenuBookIcon from "@mui/icons-material/MenuBook"
 import { LanguageSidebar, type ViewMode } from "@/components/language-sidebar"
@@ -10,32 +10,42 @@ import { SongViewer } from "@/components/song-viewer"
 import { PresentationMode } from "@/components/presentation-mode"
 import { PlaylistManager } from "@/components/playlist-manager"
 import { SearchBar } from "@/components/search-bar"
-import { SAMPLE_SONGS } from "@/lib/song-data"
-import { storage } from "@/lib/storage"
+import { LoginButton } from "@/components/auth/login-button"
+import { UserMenu } from "@/components/auth/user-menu"
+import { useAuth } from "@/lib/hooks/useAuth"
+import { useSongs } from "@/lib/hooks/useSongs"
+import { useFavorites } from "@/lib/hooks/useFavorites"
+import { usePlaylists } from "@/lib/hooks/usePlaylists"
+import { useHistory } from "@/lib/hooks/useHistory"
 import type { Song, Playlist } from "@/lib/types"
 
 const SIDEBAR_WIDTH = 280
 const SONG_LIST_WIDTH = 380
 
 export default function Home() {
-  const [selectedSong, setSelectedSong] = useState<Song | null>(SAMPLE_SONGS[0])
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null)
   const [selectedLanguage, setSelectedLanguage] = useState("Malayalam")
   const [viewMode, setViewMode] = useState<ViewMode>("all")
   const [mobileOpen, setMobileOpen] = useState(false)
   const [presentationMode, setPresentationMode] = useState(false)
-  const [favoritesCount, setFavoritesCount] = useState(0)
-  const [recentCount, setRecentCount] = useState(0)
-  const [playlistsCount, setPlaylistsCount] = useState(0)
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null)
 
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("lg"))
 
-  useEffect(() => {
-    setFavoritesCount(storage.getFavorites().length)
-    setRecentCount(storage.getRecentlyViewed().length)
-    setPlaylistsCount(storage.getPlaylists().length)
-  }, [])
+  // Auth and data hooks
+  const { user, loading: authLoading } = useAuth()
+  const { favorites, loading: favoritesLoading, toggleFavoriteStatus, checkIsFavorite } = useFavorites()
+  const { playlists, loading: playlistsLoading, createPlaylist, addSongToPlaylist, removeSongFromPlaylist } = usePlaylists()
+  const { history, loading: historyLoading, addToHistory } = useHistory()
+  
+  // Songs data based on view mode
+  const songsOptions = {
+    language: viewMode === "all" ? selectedLanguage : undefined,
+    trending: viewMode === "trending",
+    limit: 50,
+  }
+  const { songs, loading: songsLoading, error: songsError } = useSongs(songsOptions)
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
@@ -43,8 +53,8 @@ export default function Home() {
 
   const handleSelectSong = (song: Song) => {
     setSelectedSong(song)
-    storage.addRecentlyViewed(song.id)
-    setRecentCount(storage.getRecentlyViewed().length)
+    // Track view in history for both authenticated and anonymous users
+    addToHistory(song.id)
     if (isMobile) {
       setMobileOpen(false)
     }
@@ -62,9 +72,24 @@ export default function Home() {
 
   const getPlaylistSongs = (): Song[] => {
     if (selectedPlaylist) {
-      return selectedPlaylist.songIds.map((id) => SAMPLE_SONGS.find((s) => s.id === id)).filter(Boolean) as Song[]
+      return selectedPlaylist.songs || []
     }
     return []
+  }
+
+  // Show loading state
+  if (authLoading || songsLoading) {
+    return (
+      <Box sx={{ 
+        display: "flex", 
+        justifyContent: "center", 
+        alignItems: "center", 
+        height: "100vh",
+        bgcolor: "rgb(10, 10, 10)"
+      }}>
+        <CircularProgress sx={{ color: "rgb(59, 130, 246)" }} />
+      </Box>
+    )
   }
 
   const sidebar = (
@@ -73,20 +98,20 @@ export default function Home() {
       onLanguageChange={setSelectedLanguage}
       viewMode={viewMode}
       onViewModeChange={handleViewModeChange}
-      songs={SAMPLE_SONGS}
-      favoritesCount={favoritesCount}
-      recentCount={recentCount}
-      playlistsCount={playlistsCount}
+      songs={songs}
+      favoritesCount={favorites.length}
+      recentCount={history.length}
+      playlistsCount={playlists.length}
       onSelectSong={handleSelectSong}
     />
   )
 
   const songList =
     viewMode === "playlists" && !selectedPlaylist ? (
-      <PlaylistManager songs={SAMPLE_SONGS} onSelectPlaylist={handleSelectPlaylist} />
+      <PlaylistManager songs={songs} onSelectPlaylist={handleSelectPlaylist} />
     ) : (
       <EnhancedSongList
-        songs={selectedPlaylist ? getPlaylistSongs() : SAMPLE_SONGS}
+        songs={selectedPlaylist ? getPlaylistSongs() : songs}
         onSelectSong={handleSelectSong}
         selectedSongId={selectedSong?.id}
         selectedLanguage={selectedLanguage}
@@ -123,7 +148,14 @@ export default function Home() {
             </Typography>
           </Box>
           <Box sx={{ flex: 1, display: "flex", justifyContent: "center", px: 2 }}>
-            <SearchBar songs={SAMPLE_SONGS} onSelectSong={handleSelectSong} />
+            <SearchBar songs={songs} onSelectSong={handleSelectSong} />
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {user ? (
+              <UserMenu user={user} />
+            ) : (
+              <LoginButton />
+            )}
           </Box>
         </Toolbar>
       </AppBar>
@@ -204,7 +236,11 @@ export default function Home() {
           <SongViewer
             song={selectedSong}
             onPresentationMode={() => setPresentationMode(true)}
-            onFavoritesChange={() => setFavoritesCount(storage.getFavorites().length)}
+            onFavoritesChange={toggleFavoriteStatus}
+            onPlaylistAdd={addSongToPlaylist}
+            onPlaylistRemove={removeSongFromPlaylist}
+            playlists={playlists}
+            isFavorite={checkIsFavorite}
           />
         ) : (
           <Box
