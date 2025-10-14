@@ -30,6 +30,8 @@ import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd"
 import ThumbUpIcon from "@mui/icons-material/ThumbUp"
 import VisibilityIcon from "@mui/icons-material/Visibility"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
+import ExpandLessIcon from "@mui/icons-material/ExpandLess"
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
 import type { Song } from "@/lib/types"
 import { storage } from "@/lib/storage"
 import { transposeChords } from "@/lib/chord-utils"
@@ -46,6 +48,7 @@ export function SongViewer({ song, onPresentationMode, onFavoritesChange }: Song
   const [transpose, setTranspose] = useState(0)
   const [showChords, setShowChords] = useState(true)
   const [playlistMenuAnchor, setPlaylistMenuAnchor] = useState<null | HTMLElement>(null)
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
 
   useEffect(() => {
     setIsFavorite(storage.isFavorite(song.id))
@@ -101,10 +104,13 @@ export function SongViewer({ song, onPresentationMode, onFavoritesChange }: Song
         sx={{
           position: "relative",
           width: "100%",
-          height: "280px",
+          height: isHeaderCollapsed ? "120px" : "240px",
           overflow: "hidden",
           borderBottom: "1px solid rgb(38, 38, 38)",
+          transition: "height 0.3s ease",
+          cursor: "pointer",
         }}
+        onClick={() => setIsHeaderCollapsed(!isHeaderCollapsed)}
       >
         {/* Background Image */}
         <Box
@@ -144,222 +150,297 @@ export function SongViewer({ song, onPresentationMode, onFavoritesChange }: Song
             height: "100%",
             display: "flex",
             flexDirection: "column",
-            justifyContent: "space-between",
-            p: 3,
+            justifyContent: "flex-end",
+            px: 3,
+            pb: 3,
           }}
         >
-          {/* Top Actions */}
-          <Stack direction="row" justifyContent="flex-end" spacing={1}>
-            {song.hasVideo && (
-              <Tooltip title="Watch on YouTube">
-                <IconButton
-                  size="small"
-                  onClick={() => window.open(song.videoUrl, "_blank")}
-                  sx={{
-                    bgcolor: "rgba(0,0,0,0.6)",
-                    backdropFilter: "blur(10px)",
-                    color: "white",
-                    "&:hover": { bgcolor: "rgba(255,0,0,0.8)" },
-                  }}
-                >
-                  <YouTubeIcon />
-                </IconButton>
-              </Tooltip>
-            )}
-            <Tooltip title="Add to Playlist">
-              <IconButton
-                size="small"
-                onClick={handleOpenPlaylistMenu}
-                sx={{
-                  bgcolor: "rgba(0,0,0,0.6)",
-                  backdropFilter: "blur(10px)",
-                  color: "white",
-                  "&:hover": { bgcolor: "rgba(59, 130, 246, 0.8)" },
-                }}
-              >
-                <PlaylistAddIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}>
-              <IconButton
-                size="small"
-                onClick={handleToggleFavorite}
-                sx={{
-                  bgcolor: isFavorite ? "rgba(234, 179, 8, 0.9)" : "rgba(0,0,0,0.6)",
-                  backdropFilter: "blur(10px)",
-                  color: "white",
-                  "&:hover": { bgcolor: "rgba(234, 179, 8, 0.9)" },
-                }}
-              >
-                {isFavorite ? <StarIcon /> : <StarBorderIcon />}
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Presentation Mode">
-              <IconButton
-                size="small"
-                onClick={onPresentationMode}
-                sx={{
-                  bgcolor: "rgba(0,0,0,0.6)",
-                  backdropFilter: "blur(10px)",
-                  color: "white",
-                  "&:hover": { bgcolor: "rgba(59, 130, 246, 0.8)" },
-                }}
-              >
-                <PresentToAllIcon />
-              </IconButton>
-            </Tooltip>
-          </Stack>
 
           {/* Bottom Content */}
-          <Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-              <Typography
-                variant="h4"
-                sx={{
-                  color: "white",
-                  fontWeight: 700,
-                  textShadow: "0 2px 8px rgba(0,0,0,0.8)",
-                }}
-              >
-                {song.title}
-              </Typography>
-              {song.trending && (
-                <Tooltip title="Trending">
-                  <TrendingUpIcon
-                    sx={{
-                      fontSize: "2rem",
-                      color: "rgb(239, 68, 68)",
-                      filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.8))",
-                    }}
-                  />
-                </Tooltip>
-              )}
-            </Box>
-
-            {song.titleTransliteration && (
-              <Typography
-                variant="body1"
-                sx={{
-                  color: "rgba(255,255,255,0.9)",
-                  mb: 1.5,
-                  textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-                }}
-              >
-                {song.titleTransliteration}
-              </Typography>
-            )}
-
-            <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-                <Avatar
-                  src={song.artist.photoUrl}
-                  alt={song.artist.name}
-                  sx={{
-                    width: 28,
-                    height: 28,
-                    border: "2px solid rgba(255,255,255,0.3)",
-                  }}
-                />
+          <Box sx={{ position: "relative" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: isHeaderCollapsed ? 0.5 : 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1 }}>
                 <Typography
-                  variant="body2"
+                  variant={isHeaderCollapsed ? "h5" : "h4"}
                   sx={{
                     color: "white",
-                    fontWeight: 600,
+                    fontWeight: 700,
+                    textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+                  }}
+                >
+                  {song.title}
+                </Typography>
+                {song.trending && (
+                  <Tooltip title="Trending">
+                    <TrendingUpIcon
+                      sx={{
+                        fontSize: isHeaderCollapsed ? "1.5rem" : "2rem",
+                        color: "rgb(239, 68, 68)",
+                        filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.8))",
+                      }}
+                    />
+                  </Tooltip>
+                )}
+              </Box>
+              
+              {/* Action Icons */}
+              <Stack direction="row" spacing={1}>
+                {song.hasVideo && (
+                  <Tooltip title="Watch on YouTube">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        window.open(song.videoUrl, "_blank")
+                      }}
+                      sx={{
+                        bgcolor: "rgba(0,0,0,0.6)",
+                        backdropFilter: "blur(10px)",
+                        color: "white",
+                        "&:hover": { bgcolor: "rgba(255,0,0,0.8)" },
+                      }}
+                    >
+                      <YouTubeIcon />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                <Tooltip title="Add to Playlist">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleOpenPlaylistMenu(e)
+                    }}
+                    sx={{
+                      bgcolor: "rgba(0,0,0,0.6)",
+                      backdropFilter: "blur(10px)",
+                      color: "white",
+                      "&:hover": { bgcolor: "rgba(59, 130, 246, 0.8)" },
+                    }}
+                  >
+                    <PlaylistAddIcon />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleToggleFavorite()
+                    }}
+                    sx={{
+                      bgcolor: isFavorite ? "rgba(234, 179, 8, 0.9)" : "rgba(0,0,0,0.6)",
+                      backdropFilter: "blur(10px)",
+                      color: "white",
+                      "&:hover": { bgcolor: "rgba(234, 179, 8, 0.9)" },
+                    }}
+                  >
+                    {isFavorite ? <StarIcon /> : <StarBorderIcon />}
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Presentation Mode">
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onPresentationMode()
+                    }}
+                    sx={{
+                      bgcolor: "rgba(0,0,0,0.6)",
+                      backdropFilter: "blur(10px)",
+                      color: "white",
+                      "&:hover": { bgcolor: "rgba(59, 130, 246, 0.8)" },
+                    }}
+                  >
+                    <PresentToAllIcon />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            </Box>
+
+            {!isHeaderCollapsed && (
+              <>
+                {song.titleTransliteration && (
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      color: "rgba(255,255,255,0.9)",
+                      mb: 1.5,
+                      textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                    }}
+                  >
+                    {song.titleTransliteration}
+                  </Typography>
+                )}
+
+                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                    <Avatar
+                      src={song.artist.photoUrl}
+                      alt={song.artist.name}
+                      sx={{
+                        width: 28,
+                        height: 28,
+                        border: "2px solid rgba(255,255,255,0.3)",
+                      }}
+                    />
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "white",
+                        fontWeight: 600,
+                        textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                      }}
+                    >
+                      {song.artist.name}
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)" }}>
+                    •
+                  </Typography>
+                  <Chip
+                    label={`Original: ${song.originalKey}`}
+                    size="small"
+                    sx={{
+                      bgcolor: "rgba(59, 130, 246, 0.9)",
+                      backdropFilter: "blur(10px)",
+                      color: "white",
+                      fontSize: "0.75rem",
+                      height: "24px",
+                      fontWeight: 700,
+                      border: "1px solid rgba(255,255,255,0.2)",
+                    }}
+                  />
+                  <Chip
+                    label={song.language}
+                    size="small"
+                    sx={{
+                      bgcolor: "rgba(0,0,0,0.6)",
+                      backdropFilter: "blur(10px)",
+                      color: "white",
+                      fontSize: "0.7rem",
+                      height: "22px",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                    }}
+                  />
+                  {song.tags.map((tag) => (
+                    <Chip
+                      key={tag}
+                      label={tag}
+                      size="small"
+                      sx={{
+                        bgcolor: "rgba(0,0,0,0.6)",
+                        backdropFilter: "blur(10px)",
+                        color: "white",
+                        fontSize: "0.7rem",
+                        height: "22px",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                      }}
+                    />
+                  ))}
+                </Stack>
+
+                <Box sx={{ mt: 1 }}>
+                  <Stack direction="row" spacing={2.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <YouTubeIcon sx={{ fontSize: "1.1rem", color: "#FF0000" }} />
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "white",
+                          fontSize: "0.8rem",
+                          fontWeight: 500,
+                          textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                        }}
+                      >
+                        {formatNumber(song.youtubeViews)} views
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <ThumbUpIcon sx={{ fontSize: "1rem", color: "white" }} />
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "white",
+                          fontSize: "0.8rem",
+                          fontWeight: 500,
+                          textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                        }}
+                      >
+                        {formatNumber(song.youtubeLikes)} likes
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <VisibilityIcon sx={{ fontSize: "1rem", color: "white" }} />
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "white",
+                          fontSize: "0.8rem",
+                          fontWeight: 500,
+                          textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                        }}
+                      >
+                        {formatNumber(song.viewCount)} app views
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              </>
+            )}
+
+            {isHeaderCollapsed && (
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "rgba(255,255,255,0.8)",
                     textShadow: "0 1px 4px rgba(0,0,0,0.8)",
                   }}
                 >
                   {song.artist.name}
                 </Typography>
-              </Box>
-              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)" }}>
-                •
-              </Typography>
-              <Chip
-                label={`Original: ${song.originalKey}`}
-                size="small"
-                sx={{
-                  bgcolor: "rgba(59, 130, 246, 0.9)",
-                  backdropFilter: "blur(10px)",
-                  color: "white",
-                  fontSize: "0.75rem",
-                  height: "24px",
-                  fontWeight: 700,
-                  border: "1px solid rgba(255,255,255,0.2)",
-                }}
-              />
-              <Chip
-                label={song.language}
-                size="small"
-                sx={{
-                  bgcolor: "rgba(0,0,0,0.6)",
-                  backdropFilter: "blur(10px)",
-                  color: "white",
-                  fontSize: "0.7rem",
-                  height: "22px",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                }}
-              />
-              {song.tags.map((tag) => (
-                <Chip
-                  key={tag}
-                  label={tag}
+                <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.5)" }}>
+                  •
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "rgba(255,255,255,0.8)",
+                    textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                  }}
+                >
+                  {song.language}
+                </Typography>
+              </Stack>
+            )}
+
+            {/* Collapse Toggle - Bottom Right */}
+            <Box
+              sx={{
+                position: "absolute",
+                bottom: 0,
+                right: 0,
+              }}
+            >
+              <Tooltip title={isHeaderCollapsed ? "Expand Header" : "Collapse Header"}>
+                <IconButton
                   size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsHeaderCollapsed(!isHeaderCollapsed)
+                  }}
                   sx={{
                     bgcolor: "rgba(0,0,0,0.6)",
                     backdropFilter: "blur(10px)",
                     color: "white",
-                    fontSize: "0.7rem",
-                    height: "22px",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                  }}
-                />
-              ))}
-            </Stack>
-
-            <Stack direction="row" spacing={2.5} alignItems="center">
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <YouTubeIcon sx={{ fontSize: "1.1rem", color: "#FF0000" }} />
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "white",
-                    fontSize: "0.8rem",
-                    fontWeight: 500,
-                    textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                    "&:hover": { bgcolor: "rgba(59, 130, 246, 0.8)" },
                   }}
                 >
-                  {formatNumber(song.youtubeViews)} views
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <ThumbUpIcon sx={{ fontSize: "1rem", color: "white" }} />
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "white",
-                    fontSize: "0.8rem",
-                    fontWeight: 500,
-                    textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-                  }}
-                >
-                  {formatNumber(song.youtubeLikes)} likes
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <VisibilityIcon sx={{ fontSize: "1rem", color: "white" }} />
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "white",
-                    fontSize: "0.8rem",
-                    fontWeight: 500,
-                    textShadow: "0 1px 4px rgba(0,0,0,0.8)",
-                  }}
-                >
-                  {formatNumber(song.viewCount)} app views
-                </Typography>
-              </Box>
-            </Stack>
+                  {isHeaderCollapsed ? <ExpandMoreIcon /> : <ExpandLessIcon />}
+                </IconButton>
+              </Tooltip>
+            </Box>
           </Box>
         </Box>
       </Box>

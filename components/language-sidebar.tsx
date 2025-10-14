@@ -18,9 +18,7 @@ import LanguageIcon from "@mui/icons-material/Language"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import StarIcon from "@mui/icons-material/Star"
 import HistoryIcon from "@mui/icons-material/History"
-import NewReleasesIcon from "@mui/icons-material/NewReleases"
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
-import MicIcon from "@mui/icons-material/Mic"
 import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay"
 import ExpandLess from "@mui/icons-material/ExpandLess"
 import ExpandMore from "@mui/icons-material/ExpandMore"
@@ -33,9 +31,7 @@ export type ViewMode =
   | "trending"
   | "favorites"
   | "recent"
-  | "new-releases"
   | "all-time-hits"
-  | "top-artists"
   | "playlists"
 
 interface LanguageSidebarProps {
@@ -75,12 +71,6 @@ export function LanguageSidebar({
   }
 
   const trendingCount = songs.filter((s) => s.trending).length
-  const newReleasesCount = songs.filter((s) => {
-    const releaseDate = new Date(s.releaseDate)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    return releaseDate > thirtyDaysAgo
-  }).length
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column", bgcolor: "rgb(20, 20, 20)" }}>
@@ -246,32 +236,7 @@ export function LanguageSidebar({
 
           <Divider sx={{ my: 1, borderColor: "rgb(38, 38, 38)" }} />
 
-          <ListItem disablePadding>
-            <ListItemButton
-              selected={viewMode === "new-releases"}
-              onClick={() => onViewModeChange("new-releases")}
-              sx={{
-                py: 1,
-                "&.Mui-selected": {
-                  bgcolor: "rgb(38, 38, 38)",
-                  borderLeft: "3px solid rgb(59, 130, 246)",
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 36 }}>
-                <NewReleasesIcon sx={{ fontSize: "1.2rem", color: "rgb(34, 197, 94)" }} />
-              </ListItemIcon>
-              <ListItemText
-                primary={
-                  <Badge badgeContent={newReleasesCount} color="success" sx={{ "& .MuiBadge-badge": { right: -12 } }}>
-                    <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
-                      New Releases
-                    </Typography>
-                  </Badge>
-                }
-              />
-            </ListItemButton>
-          </ListItem>
+
 
           <ListItem disablePadding>
             <ListItemButton
@@ -298,30 +263,7 @@ export function LanguageSidebar({
             </ListItemButton>
           </ListItem>
 
-          <ListItem disablePadding>
-            <ListItemButton
-              selected={viewMode === "top-artists"}
-              onClick={() => onViewModeChange("top-artists")}
-              sx={{
-                py: 1,
-                "&.Mui-selected": {
-                  bgcolor: "rgb(38, 38, 38)",
-                  borderLeft: "3px solid rgb(59, 130, 246)",
-                },
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 36 }}>
-                <MicIcon sx={{ fontSize: "1.2rem", color: "rgb(168, 85, 247)" }} />
-              </ListItemIcon>
-              <ListItemText
-                primary={
-                  <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
-                    Top Worshipers
-                  </Typography>
-                }
-              />
-            </ListItemButton>
-          </ListItem>
+
 
           <ListItem disablePadding>
             <ListItemButton

@@ -45,7 +45,7 @@ export function SearchBar({ songs, onSelectSong }: SearchBarProps) {
       const filtered = songs.filter(
         (song) =>
           song.title.toLowerCase().includes(query) ||
-          song.transliteration?.toLowerCase().includes(query) ||
+          song.titleTransliteration?.toLowerCase().includes(query) ||
           song.artist.name.toLowerCase().includes(query) ||
           song.language.toLowerCase().includes(query) ||
           song.tags.some((tag) => tag.toLowerCase().includes(query)),

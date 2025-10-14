@@ -119,7 +119,7 @@ export default function Home() {
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexShrink: 0 }}>
             <MenuBookIcon sx={{ color: "rgb(59, 130, 246)", fontSize: "1.5rem" }} />
             <Typography variant="h6" noWrap component="div" sx={{ color: "rgb(250, 250, 250)", fontWeight: 600 }}>
-              Verse View
+              GNC Worship Tool
             </Typography>
           </Box>
           <Box sx={{ flex: 1, display: "flex", justifyContent: "center", px: 2 }}>
