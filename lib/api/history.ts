@@ -73,33 +73,87 @@ export async function getHistory(limit: number = 20): Promise<HistorySong[]> {
 
 export async function addToHistory(songId: string): Promise<void> {
   try {
+    // Validate songId
+    if (!songId || typeof songId !== 'string') {
+      console.error('Invalid songId provided to addToHistory:', songId)
+      throw new Error('Invalid song ID provided')
+    }
+
+    console.log('Adding to history - songId:', songId)
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
       // For guest users, we can store in localStorage as fallback
-      const guestHistory = JSON.parse(localStorage.getItem('guest_history') || '[]')
-      const updatedHistory = guestHistory.filter((id: string) => id !== songId)
-      updatedHistory.unshift(songId)
-      updatedHistory.splice(20) // Keep only last 20
-      localStorage.setItem('guest_history', JSON.stringify(updatedHistory))
-      return
+      try {
+        const guestHistory = JSON.parse(localStorage.getItem('guest_history') || '[]')
+        const updatedHistory = guestHistory.filter((id: string) => id !== songId)
+        updatedHistory.unshift(songId)
+        updatedHistory.splice(20) // Keep only last 20
+        localStorage.setItem('guest_history', JSON.stringify(updatedHistory))
+        return
+      } catch (localStorageError) {
+        console.error('Error with localStorage in addToHistory:', localStorageError)
+        // Don't throw error for localStorage issues in guest mode
+        return
+      }
     }
 
-    // Use upsert to either insert or update the viewed_at timestamp
-    const { error } = await supabase
+    // Use a more reliable approach: try to insert first, handle conflicts
+    const { error: insertError } = await supabase
       .from('user_history')
-      .upsert({
+      .insert({
         user_id: user.id,
         song_id: songId,
         viewed_at: new Date().toISOString(),
       })
 
-    if (error) {
-      console.error('Error adding to history:', error)
-      throw new Error('Failed to add to history')
+    if (insertError) {
+      console.log('Insert error details:', {
+        code: insertError.code,
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint
+      })
+      
+      // If it's a duplicate key error, try to update instead
+      if (insertError.code === '23505') {
+        console.log('Duplicate key error, attempting update...')
+        const { error: updateError } = await supabase
+          .from('user_history')
+          .update({ viewed_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .eq('song_id', songId)
+
+        if (updateError) {
+          console.error('Error updating history after insert conflict:', updateError)
+          throw new Error(`Failed to add to history: ${updateError.message || 'Unknown error'}`)
+        } else {
+          console.log('Successfully updated existing history record')
+        }
+      } else {
+        console.error('Error inserting to history:', insertError)
+        throw new Error(`Failed to add to history: ${insertError.message || 'Unknown error'}`)
+      }
+    } else {
+      console.log('Successfully inserted new history record')
     }
   } catch (error) {
     console.error('Error in addToHistory:', error)
+    
+    // If database operation fails, try to store in localStorage as fallback
+    try {
+      console.log('Database operation failed, falling back to localStorage')
+      const fallbackHistory = JSON.parse(localStorage.getItem('fallback_history') || '[]')
+      const updatedHistory = fallbackHistory.filter((id: string) => id !== songId)
+      updatedHistory.unshift(songId)
+      updatedHistory.splice(20) // Keep only last 20
+      localStorage.setItem('fallback_history', JSON.stringify(updatedHistory))
+      console.log('Successfully stored in localStorage fallback')
+      return // Don't throw error, just return successfully
+    } catch (localStorageError) {
+      console.error('Even localStorage fallback failed:', localStorageError)
+    }
+    
     throw error
   }
 }

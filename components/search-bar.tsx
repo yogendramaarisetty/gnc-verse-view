@@ -17,14 +17,16 @@ import {
 import SearchIcon from "@mui/icons-material/Search"
 import HistoryIcon from "@mui/icons-material/History"
 import type { Song } from "@/lib/types"
+import type { HistorySong } from "@/lib/api/history"
 import { storage } from "@/lib/storage"
 
 interface SearchBarProps {
   songs: Song[]
   onSelectSong: (song: Song) => void
+  history?: HistorySong[]
 }
 
-export function SearchBar({ songs, onSelectSong }: SearchBarProps) {
+export function SearchBar({ songs, onSelectSong, history }: SearchBarProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isFocused, setIsFocused] = useState(false)
   const [recentSongs, setRecentSongs] = useState<Song[]>([])
@@ -33,10 +35,20 @@ export function SearchBar({ songs, onSelectSong }: SearchBarProps) {
 
   useEffect(() => {
     // Load recently viewed songs
-    const recentIds = storage.getRecentlyViewed().slice(0, 10)
-    const recent = recentIds.map((id) => songs.find((s) => s.id === id)).filter(Boolean) as Song[]
-    setRecentSongs(recent)
-  }, [songs])
+    if (history && history.length > 0) {
+      // Use database history if available
+      const recent = history
+        .slice(0, 10)
+        .map((historyItem) => songs.find((s) => s.id === historyItem.id))
+        .filter(Boolean) as Song[]
+      setRecentSongs(recent)
+    } else {
+      // Fallback to localStorage for backward compatibility
+      const recentIds = storage.getRecentlyViewed().slice(0, 10)
+      const recent = recentIds.map((id) => songs.find((s) => s.id === id)).filter(Boolean) as Song[]
+      setRecentSongs(recent)
+    }
+  }, [songs, history])
 
   useEffect(() => {
     // Filter songs based on search query
@@ -82,7 +94,7 @@ export function SearchBar({ songs, onSelectSong }: SearchBarProps) {
       <TextField
         fullWidth
         size="small"
-        placeholder="Search songs, artists, or tags..."
+        placeholder="Search All Songs"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         onFocus={() => setIsFocused(true)}
@@ -96,6 +108,7 @@ export function SearchBar({ songs, onSelectSong }: SearchBarProps) {
             bgcolor: "rgb(38, 38, 38)",
             color: "rgb(250, 250, 250)",
             borderRadius: 1,
+            fontSize: { xs: "0.875rem", sm: "1rem" },
             "& .MuiOutlinedInput-notchedOutline": {
               borderColor: "rgb(64, 64, 64)",
             },
@@ -104,6 +117,9 @@ export function SearchBar({ songs, onSelectSong }: SearchBarProps) {
             },
             "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
               borderColor: "rgb(59, 130, 246)",
+            },
+            "& .MuiInputBase-input": {
+              padding: { xs: "8px 12px", sm: "12px 14px" },
             },
           },
         }}
@@ -125,15 +141,18 @@ export function SearchBar({ songs, onSelectSong }: SearchBarProps) {
           sx={{
             position: "absolute",
             top: "calc(100% + 4px)",
-            left: 0,
-            right: 0,
-            zIndex: 1300,
+            left: { xs: "-8px", sm: 0 },
+            right: { xs: "-8px", sm: 0 },
+            zIndex: 9999,
             bgcolor: "rgb(30, 30, 30)",
             border: "1px solid rgb(64, 64, 64)",
             borderRadius: 1,
-            maxHeight: 400,
+            maxHeight: { xs: 300, sm: 400 },
             overflow: "auto",
             boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
+            width: { xs: "calc(100vw - 16px)", sm: "auto" },
+            minWidth: "200px",
+            maxWidth: { xs: "calc(100vw - 16px)", sm: "400px" },
           }}
         >
           {!searchQuery.trim() && (
@@ -154,10 +173,10 @@ export function SearchBar({ songs, onSelectSong }: SearchBarProps) {
                 <ListItemButton
                   onClick={() => handleSelectSong(song)}
                   sx={{
-                    py: 1,
-                    px: 1.5,
+                    py: { xs: 1.5, sm: 1 },
+                    px: { xs: 2, sm: 1.5 },
                     display: "flex",
-                    gap: 1.5,
+                    gap: { xs: 1, sm: 1.5 },
                     "&:hover": {
                       bgcolor: "rgb(38, 38, 38)",
                     },

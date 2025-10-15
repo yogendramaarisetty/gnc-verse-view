@@ -23,6 +23,7 @@ import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay"
 import ExpandLess from "@mui/icons-material/ExpandLess"
 import ExpandMore from "@mui/icons-material/ExpandMore"
 import type { Song } from "@/lib/types"
+import type { HistorySong } from "@/lib/api/history"
 import { LANGUAGES } from "@/lib/song-data"
 import { storage } from "@/lib/storage"
 
@@ -40,6 +41,7 @@ interface LanguageSidebarProps {
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   songs: Song[]
+  history: HistorySong[]
   favoritesCount: number
   recentCount: number
   playlistsCount: number
@@ -52,6 +54,7 @@ export function LanguageSidebar({
   viewMode,
   onViewModeChange,
   songs,
+  history,
   favoritesCount,
   recentCount,
   playlistsCount,
@@ -61,16 +64,26 @@ export function LanguageSidebar({
   const [recentSongs, setRecentSongs] = useState<Song[]>([])
 
   useEffect(() => {
-    const recentIds = storage.getRecentlyViewed().slice(0, 4)
-    const recent = recentIds.map((id) => songs.find((s) => s.id === id)).filter(Boolean) as Song[]
-    setRecentSongs(recent)
-  }, [songs, recentCount])
+    if (!songs || songs.length === 0 || !history || history.length === 0) return
+    
+    // Convert history data to Song objects
+    const recentSongsFromHistory = history
+      .slice(0, 4) // Get the 4 most recent
+      .map(historyItem => {
+        // Find the corresponding song in the songs array
+        return songs.find(song => song.id === historyItem.id)
+      })
+      .filter(Boolean) as Song[]
+    
+    setRecentSongs(recentSongsFromHistory)
+  }, [songs, history, recentCount])
 
   const getSongCountByLanguage = (lang: string) => {
+    if (!songs || songs.length === 0) return 0
     return songs.filter((s) => s.language === lang).length
   }
 
-  const trendingCount = songs.filter((s) => s.trending).length
+  const trendingCount = songs && songs.length > 0 ? songs.filter((s) => s.trending).length : 0
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column", bgcolor: "rgb(20, 20, 20)" }}>
@@ -83,8 +96,24 @@ export function LanguageSidebar({
         </Typography>
       </Box>
 
-      <Box sx={{ flex: 1, overflow: "auto" }}>
-        <List dense disablePadding>
+      <Box sx={{ 
+        flex: 1, 
+        overflow: "auto",
+        "&::-webkit-scrollbar": {
+          width: "6px",
+        },
+        "&::-webkit-scrollbar-track": {
+          background: "rgb(38, 38, 38)",
+        },
+        "&::-webkit-scrollbar-thumb": {
+          background: "rgb(64, 64, 64)",
+          borderRadius: "3px",
+        },
+        "&::-webkit-scrollbar-thumb:hover": {
+          background: "rgb(82, 82, 82)",
+        },
+      }}>
+        <List dense disablePadding sx={{ pb: 2 }}>
           {/* Quick Access */}
           <ListItem disablePadding>
             <ListItemButton

@@ -147,7 +147,7 @@ export function SongViewer({
         sx={{
           position: "relative",
           width: "100%",
-          height: isHeaderCollapsed ? "120px" : "240px",
+          height: isHeaderCollapsed ? { xs: "100px", sm: "120px" } : { xs: "200px", sm: "240px" },
           overflow: "hidden",
           borderBottom: "1px solid rgb(38, 38, 38)",
           transition: "height 0.3s ease",
@@ -209,6 +209,17 @@ export function SongViewer({
                     color: "white",
                     fontWeight: 700,
                     textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+                    fontSize: { 
+                      xs: isHeaderCollapsed ? "1.25rem" : "1.5rem", 
+                      sm: isHeaderCollapsed ? "1.5rem" : "2rem" 
+                    },
+                    lineHeight: { xs: 1.2, sm: 1.3 },
+                    wordBreak: "break-word",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    display: "-webkit-box",
+                    WebkitLineClamp: { xs: 2, sm: 3 },
+                    WebkitBoxOrient: "vertical",
                   }}
                 >
                   {song.title}

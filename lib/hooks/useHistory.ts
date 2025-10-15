@@ -72,6 +72,13 @@ export function useHistory() {
   }, [authLoading, loadHistory])
 
   const addToHistoryList = useCallback(async (songId: string) => {
+    // Validate songId
+    if (!songId || typeof songId !== 'string') {
+      console.error('Invalid songId provided to addToHistoryList:', songId)
+      setError('Invalid song ID provided')
+      return
+    }
+
     if (!user) {
       // For anonymous users, use localStorage
       const currentHistory = loadAnonymousHistory()
@@ -95,7 +102,18 @@ export function useHistory() {
       await addToHistory(songId)
       await loadHistory() // Refresh the list
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add to history')
+      console.error('Error in addToHistoryList:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add to history'
+      setError(errorMessage)
+      // Don't prevent the song selection from working even if history fails
+      console.warn('History tracking failed, but song selection will continue')
+      
+      // Try to load history anyway to see if we can get partial data
+      try {
+        await loadHistory()
+      } catch (loadErr) {
+        console.error('Failed to load history after error:', loadErr)
+      }
     }
   }, [user, loadHistory, loadAnonymousHistory, saveAnonymousHistory])
 

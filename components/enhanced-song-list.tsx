@@ -30,6 +30,7 @@ import ThumbUpIcon from "@mui/icons-material/ThumbUp"
 import VisibilityIcon from "@mui/icons-material/Visibility"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import type { Song } from "@/lib/types"
+import type { HistorySong } from "@/lib/api/history"
 import { TAGS, MUSICAL_KEYS, ARTISTS } from "@/lib/song-data"
 import { storage } from "@/lib/storage"
 import type { ViewMode } from "./language-sidebar"
@@ -40,6 +41,7 @@ interface EnhancedSongListProps {
   selectedSongId?: string
   selectedLanguage: string
   viewMode: ViewMode
+  history?: HistorySong[]
 }
 
 export function EnhancedSongList({
@@ -48,6 +50,7 @@ export function EnhancedSongList({
   selectedSongId,
   selectedLanguage,
   viewMode,
+  history,
 }: EnhancedSongListProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTag, setSelectedTag] = useState("All")
@@ -70,8 +73,17 @@ export function EnhancedSongList({
     } else if (viewMode === "favorites") {
       filtered = filtered.filter((s) => favorites.includes(s.id))
     } else if (viewMode === "recent") {
-      const recentSongs = recentlyViewed.map((id) => songs.find((s) => s.id === id)).filter(Boolean) as Song[]
-      return recentSongs
+      // Use database history if available, otherwise fall back to localStorage
+      if (history && history.length > 0) {
+        const recentSongs = history.map((historyItem) => 
+          songs.find((s) => s.id === historyItem.id)
+        ).filter(Boolean) as Song[]
+        filtered = recentSongs
+      } else {
+        // Fallback to localStorage for backward compatibility
+        const recentSongs = recentlyViewed.map((id) => songs.find((s) => s.id === id)).filter(Boolean) as Song[]
+        filtered = recentSongs
+      }
     } else if (viewMode === "all-time-hits") {
       filtered = [...filtered].sort((a, b) => b.youtubeViews - a.youtubeViews).slice(0, 20)
     } else if (viewMode === "all") {
@@ -79,7 +91,7 @@ export function EnhancedSongList({
       filtered = filtered.filter((s) => s.language === selectedLanguage)
     }
 
-    // Search filter
+    // Search filter - Apply to all view modes
     if (searchQuery) {
       const searchLower = searchQuery.toLowerCase()
       filtered = filtered.filter(
@@ -115,6 +127,7 @@ export function EnhancedSongList({
     selectedArtist,
     favorites,
     recentlyViewed,
+    history,
     viewMode,
     selectedLanguage,
   ])
@@ -131,6 +144,25 @@ export function EnhancedSongList({
     return num.toString()
   }
 
+  const getSearchPlaceholder = (): string => {
+    switch (viewMode) {
+      case "recent":
+        return "Search Recent Songs"
+      case "favorites":
+        return "Search Favorites"
+      case "trending":
+        return "Search Trending Songs"
+      case "all-time-hits":
+        return "Search All Time Hits"
+      case "playlists":
+        return "Search Playlists"
+      case "all":
+        return `Search ${selectedLanguage} Songs`
+      default:
+        return "Search songs, lyrics, artist..."
+    }
+  }
+
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column", bgcolor: "rgb(20, 20, 20)" }}>
       {/* Search */}
@@ -138,7 +170,7 @@ export function EnhancedSongList({
         <TextField
           fullWidth
           size="small"
-          placeholder="Search songs, lyrics, artist..."
+          placeholder={getSearchPlaceholder()}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           InputProps={{

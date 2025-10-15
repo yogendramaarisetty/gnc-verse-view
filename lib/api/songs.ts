@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client'
 import type { Song } from '@/lib/types'
+import { SONGS } from '@/lib/song-data'
 
 const supabase = createClient()
 
@@ -56,7 +57,7 @@ export async function fetchSongs(filters: SongsFilters = {}): Promise<Song[]> {
     }
 
     // Transform data to match frontend interface
-    return songs?.map(song => ({
+    const transformedSongs = songs?.map(song => ({
       id: song.id,
       title: song.title,
       titleTransliteration: song.title_transliteration,
@@ -81,9 +82,18 @@ export async function fetchSongs(filters: SongsFilters = {}): Promise<Song[]> {
       viewCount: song.view_count,
       trending: song.trending,
     })) || []
+
+    // If no songs from database, use local data as fallback
+    if (transformedSongs.length === 0) {
+      console.log('No songs found in database, using local data as fallback')
+      return SONGS
+    }
+
+    return transformedSongs
   } catch (error) {
     console.error('Error in fetchSongs:', error)
-    throw error
+    console.log('Using local data as fallback due to error')
+    return SONGS
   }
 }
 

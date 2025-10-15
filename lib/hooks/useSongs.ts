@@ -160,3 +160,29 @@ export function useTrendingSongs(limit: number = 20) {
     error,
   }
 }
+
+export function useAllSongs() {
+  const [songs, setSongs] = useState<Song[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadAllSongs = async () => {
+      setLoading(true)
+      setError(null)
+      
+      try {
+        const data = await fetchSongs({}) // Empty options to get all songs
+        setSongs(data)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load all songs')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadAllSongs()
+  }, [])
+
+  return { songs, loading, error }
+}
