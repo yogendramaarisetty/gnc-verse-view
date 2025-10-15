@@ -30,6 +30,7 @@ CREATE TABLE songs (
   release_date DATE,
   view_count BIGINT DEFAULT 0,
   trending BOOLEAN DEFAULT FALSE,
+  json_id INTEGER, -- Original JSON ID for tracking
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

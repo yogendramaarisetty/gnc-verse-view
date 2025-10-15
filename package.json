@@ -6,7 +6,9 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "load:songs": "tsx scripts/batch-load-songs.ts",
+    "migrate:json-id": "tsx scripts/add-json-id-migration.sql"
   },
   "dependencies": {
     "@emotion/cache": "latest",
@@ -79,6 +81,7 @@
     "dotenv": "^17.2.3",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
+    "tsx": "^4.19.2",
     "tw-animate-css": "1.3.3",
     "typescript": "^5"
   },
