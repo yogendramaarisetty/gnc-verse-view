@@ -35,14 +35,30 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
 import type { Song } from "@/lib/types"
 import { storage } from "@/lib/storage"
 import { transposeChords } from "@/lib/chord-utils"
+import { useAuth } from "@/lib/hooks/useAuth"
+import { useRouter } from "next/navigation"
 
 interface SongViewerProps {
   song: Song
   onPresentationMode: () => void
   onFavoritesChange?: () => void
+  onPlaylistAdd?: (playlistId: string) => void
+  onPlaylistRemove?: (playlistId: string) => void
+  playlists?: any[]
+  isFavorite?: boolean
 }
 
-export function SongViewer({ song, onPresentationMode, onFavoritesChange }: SongViewerProps) {
+export function SongViewer({ 
+  song, 
+  onPresentationMode, 
+  onFavoritesChange, 
+  onPlaylistAdd, 
+  onPlaylistRemove, 
+  playlists = [], 
+  isFavorite: propIsFavorite 
+}: SongViewerProps) {
+  const { user } = useAuth()
+  const router = useRouter()
   const [isFavorite, setIsFavorite] = useState(false)
   const [fontSize, setFontSize] = useState(16)
   const [transpose, setTranspose] = useState(0)
@@ -51,15 +67,31 @@ export function SongViewer({ song, onPresentationMode, onFavoritesChange }: Song
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
 
   useEffect(() => {
-    setIsFavorite(storage.isFavorite(song.id))
+    if (user) {
+      // Use prop value if available (from authenticated context)
+      setIsFavorite(propIsFavorite ?? false)
+    } else {
+      // Use local storage for anonymous users
+      setIsFavorite(storage.isFavorite(song.id))
+    }
     setFontSize(storage.getFontSize())
     setTranspose(0)
-  }, [song.id])
+  }, [song.id, user, propIsFavorite])
 
   const handleToggleFavorite = () => {
-    const newState = storage.toggleFavorite(song.id)
-    setIsFavorite(newState)
-    onFavoritesChange?.()
+    if (!user) {
+      // Redirect to login if not authenticated
+      router.push('/login')
+      return
+    }
+    
+    if (onFavoritesChange) {
+      onFavoritesChange()
+    } else {
+      // Fallback to local storage
+      const newState = storage.toggleFavorite(song.id)
+      setIsFavorite(newState)
+    }
   }
 
   const handleFontSizeChange = (delta: number) => {
@@ -76,6 +108,11 @@ export function SongViewer({ song, onPresentationMode, onFavoritesChange }: Song
   }
 
   const handleOpenPlaylistMenu = (event: React.MouseEvent<HTMLElement>) => {
+    if (!user) {
+      // Redirect to login if not authenticated
+      router.push('/login')
+      return
+    }
     setPlaylistMenuAnchor(event.currentTarget)
   }
 
@@ -84,11 +121,17 @@ export function SongViewer({ song, onPresentationMode, onFavoritesChange }: Song
   }
 
   const handleAddToPlaylist = (playlistId: string) => {
-    storage.addSongToPlaylist(playlistId, song.id)
+    if (onPlaylistAdd) {
+      onPlaylistAdd(playlistId)
+    } else {
+      // Fallback to local storage
+      storage.addSongToPlaylist(playlistId, song.id)
+    }
     handleClosePlaylistMenu()
   }
 
-  const playlists = storage.getPlaylists()
+  // Use prop playlists if available, otherwise fallback to local storage
+  const availablePlaylists = playlists.length > 0 ? playlists : storage.getPlaylists()
   const transposedChords = song.chords ? transposeChords(song.chords, transpose) : []
 
   const formatNumber = (num: number): string => {

@@ -108,7 +108,12 @@ export default function Home() {
 
   const songList =
     viewMode === "playlists" && !selectedPlaylist ? (
-      <PlaylistManager songs={songs} onSelectPlaylist={handleSelectPlaylist} />
+      <PlaylistManager 
+        songs={songs} 
+        onSelectPlaylist={handleSelectPlaylist}
+        onCreatePlaylist={createPlaylist}
+        playlists={playlists}
+      />
     ) : (
       <EnhancedSongList
         songs={selectedPlaylist ? getPlaylistSongs() : songs}
