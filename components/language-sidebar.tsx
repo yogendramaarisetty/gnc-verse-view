@@ -24,11 +24,11 @@ import ExpandLess from "@mui/icons-material/ExpandLess"
 import ExpandMore from "@mui/icons-material/ExpandMore"
 import type { Song } from "@/lib/types"
 import type { HistorySong } from "@/lib/api/history"
-import { LANGUAGES } from "@/lib/song-data"
 import { storage } from "@/lib/storage"
 
 export type ViewMode =
   | "all"
+  | "all-songs"
   | "trending"
   | "favorites"
   | "recent"
@@ -45,7 +45,9 @@ interface LanguageSidebarProps {
   favoritesCount: number
   recentCount: number
   playlistsCount: number
+  allSongsCount: number
   onSelectSong: (song: Song) => void
+  onShowAllSongs: () => void
 }
 
 export function LanguageSidebar({
@@ -58,9 +60,10 @@ export function LanguageSidebar({
   favoritesCount,
   recentCount,
   playlistsCount,
+  allSongsCount,
   onSelectSong,
+  onShowAllSongs,
 }: LanguageSidebarProps) {
-  const [languagesOpen, setLanguagesOpen] = useState(true)
   const [recentSongs, setRecentSongs] = useState<Song[]>([])
 
   useEffect(() => {
@@ -321,65 +324,39 @@ export function LanguageSidebar({
             </ListItemButton>
           </ListItem>
 
-          <Divider sx={{ my: 1, borderColor: "rgb(38, 38, 38)" }} />
-
-          {/* Languages */}
+          {/* All Songs Menu Item - First */}
           <ListItem disablePadding>
-            <ListItemButton onClick={() => setLanguagesOpen(!languagesOpen)} sx={{ py: 1 }}>
-              <ListItemIcon sx={{ minWidth: 36 }}>
-                <LanguageIcon sx={{ fontSize: "1.2rem", color: "rgb(163, 163, 163)" }} />
+            <ListItemButton
+              selected={viewMode === "all-songs"}
+              onClick={onShowAllSongs}
+              sx={{
+                pl: 3,
+                py: 1,
+                "&.Mui-selected": {
+                  bgcolor: "rgb(38, 38, 38)",
+                  borderLeft: "3px solid rgb(59, 130, 246)",
+                },
+              }}
+            >
+              <ListItemIcon>
+                <LanguageIcon sx={{ color: "rgb(163, 163, 163)", fontSize: "1.25rem" }} />
               </ListItemIcon>
               <ListItemText
                 primary={
-                  <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}>
-                    Browse by Language
-                  </Typography>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontSize: "0.875rem", fontWeight: 500 }}>
+                      All {selectedLanguage} Songs
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem" }}>
+                      {allSongsCount}
+                    </Typography>
+                  </Box>
                 }
               />
-              {languagesOpen ? (
-                <ExpandLess sx={{ color: "rgb(163, 163, 163)" }} />
-              ) : (
-                <ExpandMore sx={{ color: "rgb(163, 163, 163)" }} />
-              )}
             </ListItemButton>
           </ListItem>
 
-          <Collapse in={languagesOpen} timeout="auto" unmountOnExit>
-            <List dense disablePadding>
-              {LANGUAGES.map((lang) => (
-                <ListItem key={lang} disablePadding>
-                  <ListItemButton
-                    selected={selectedLanguage === lang && viewMode === "all"}
-                    onClick={() => {
-                      onLanguageChange(lang)
-                      onViewModeChange("all")
-                    }}
-                    sx={{
-                      pl: 6,
-                      py: 0.75,
-                      "&.Mui-selected": {
-                        bgcolor: "rgb(38, 38, 38)",
-                        borderLeft: "3px solid rgb(59, 130, 246)",
-                      },
-                    }}
-                  >
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontSize: "0.875rem" }}>
-                            {lang}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem" }}>
-                            {getSongCountByLanguage(lang)}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          </Collapse>
+          <Divider sx={{ my: 1, borderColor: "rgb(38, 38, 38)" }} />
         </List>
       </Box>
     </Box>

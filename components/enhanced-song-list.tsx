@@ -89,6 +89,9 @@ export function EnhancedSongList({
     } else if (viewMode === "all") {
       // Language filter only applies in "all" mode
       filtered = filtered.filter((s) => s.language === selectedLanguage)
+    } else if (viewMode === "all-songs") {
+      // All songs mode - show all songs for the selected language
+      filtered = filtered.filter((s) => s.language === selectedLanguage)
     }
 
     // Search filter - Apply to all view modes
@@ -349,12 +352,15 @@ export function EnhancedSongList({
                         <Chip
                           label={song.originalKey}
                           size="small"
+                          variant="outlined"
                           component="span"
                           sx={{
                             height: "16px",
                             fontSize: "0.65rem",
-                            bgcolor: "rgb(59, 130, 246)",
-                            color: "white",
+                            bgcolor: "rgba(59, 130, 246, 0.05)",
+                            borderColor: "rgb(59, 130, 246)",
+                            color: "rgb(59, 130, 246)",
+                            fontWeight: 600,
                             "& .MuiChip-label": { px: 0.75 },
                             display: "inline-flex",
                             verticalAlign: "middle",

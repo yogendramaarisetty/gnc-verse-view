@@ -78,6 +78,7 @@ export function SongViewer({
     setTranspose(0)
   }, [song.id, user, propIsFavorite])
 
+
   const handleToggleFavorite = () => {
     if (!user) {
       // Redirect to login if not authenticated
@@ -355,14 +356,14 @@ export function SongViewer({
                   <Chip
                     label={`Original: ${song.originalKey}`}
                     size="small"
+                    variant="outlined"
                     sx={{
-                      bgcolor: "rgba(59, 130, 246, 0.9)",
-                      backdropFilter: "blur(10px)",
-                      color: "white",
+                      bgcolor: "rgba(59, 130, 246, 0.05)",
+                      borderColor: "rgb(59, 130, 246)",
+                      color: "rgb(59, 130, 246)",
                       fontSize: "0.75rem",
                       height: "24px",
-                      fontWeight: 700,
-                      border: "1px solid rgba(255,255,255,0.2)",
+                      fontWeight: 600,
                     }}
                   />
                   <Chip
@@ -600,19 +601,21 @@ export function SongViewer({
               <Divider orientation="vertical" flexItem sx={{ borderColor: "rgb(38, 38, 38)" }} />
               <Button
                 size="small"
-                variant={showChords ? "contained" : "outlined"}
+                variant="outlined"
                 startIcon={<MusicNoteIcon />}
                 onClick={() => setShowChords(!showChords)}
                 sx={{
-                  bgcolor: showChords ? "rgb(59, 130, 246)" : "transparent",
-                  color: showChords ? "white" : "rgb(163, 163, 163)",
-                  borderColor: "rgb(38, 38, 38)",
+                  bgcolor: showChords ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: showChords ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: showChords ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
                   "&:hover": {
-                    bgcolor: showChords ? "rgb(59, 130, 246)" : "rgb(30, 30, 30)",
+                    bgcolor: showChords ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
                     borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
                   },
                   textTransform: "none",
                   fontSize: "0.75rem",
+                  fontWeight: showChords ? 600 : 400,
                 }}
               >
                 Chords

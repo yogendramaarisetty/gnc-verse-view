@@ -30,6 +30,8 @@ interface UnifiedSidebarProps {
   sidebarView: 'navigation' | 'songList'
   onShowNavigation: () => void
   onShowSongList: () => void
+  onShowAllSongs?: () => void
+  allSongsCount?: number
 }
 
 export function UnifiedSidebar({
@@ -53,7 +55,9 @@ export function UnifiedSidebar({
   checkIsFavorite,
   sidebarView,
   onShowNavigation,
-  onShowSongList
+  onShowSongList,
+  onShowAllSongs,
+  allSongsCount,
 }: UnifiedSidebarProps) {
   const getPlaylistSongs = () => {
     if (!selectedPlaylist) return []
@@ -103,7 +107,9 @@ export function UnifiedSidebar({
             favoritesCount={0}
             recentCount={history.length}
             playlistsCount={playlists.length}
+            allSongsCount={allSongsCount || 0}
             onSelectSong={onSelectSong}
+            onShowAllSongs={onShowAllSongs}
           />
         )
       ) : (

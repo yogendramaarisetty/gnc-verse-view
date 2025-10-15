@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import {
   Box,
   TextField,
@@ -10,218 +10,363 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
+  ListItemAvatar,
+  Avatar,
   Typography,
   Chip,
-  CardMedia,
+  CircularProgress,
+  Divider,
+  Tooltip,
+  Alert,
+  IconButton,
 } from "@mui/material"
 import SearchIcon from "@mui/icons-material/Search"
+import ClearIcon from "@mui/icons-material/Clear"
 import HistoryIcon from "@mui/icons-material/History"
+import PlayArrowIcon from "@mui/icons-material/PlayArrow"
+import ThumbUpIcon from "@mui/icons-material/ThumbUp"
+import VisibilityIcon from "@mui/icons-material/Visibility"
+import StarIcon from "@mui/icons-material/Star"
+import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import type { Song } from "@/lib/types"
-import type { HistorySong } from "@/lib/api/history"
-import { storage } from "@/lib/storage"
+import { useFuzzySearch } from "@/lib/hooks/useFuzzySearch"
+import { CacheStatus } from "./cache-status"
 
 interface SearchBarProps {
-  songs: Song[]
   onSelectSong: (song: Song) => void
-  history?: HistorySong[]
+  songs?: Song[]
+  language?: string
 }
 
-export function SearchBar({ songs, onSelectSong, history }: SearchBarProps) {
+export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isFocused, setIsFocused] = useState(false)
-  const [recentSongs, setRecentSongs] = useState<Song[]>([])
-  const [filteredSongs, setFilteredSongs] = useState<Song[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  
+  const {
+    query,
+    results,
+    suggestions,
+    loading,
+    error,
+    search,
+    clearSearch,
+    hasResults,
+    isEmpty,
+    getSearchStats,
+    getTopResults
+  } = useFuzzySearch({
+    songs,
+    language,
+    debounceMs: 300,
+    minQueryLength: 1
+  })
 
-  useEffect(() => {
-    // Load recently viewed songs
-    if (history && history.length > 0) {
-      // Use database history if available
-      const recent = history
-        .slice(0, 10)
-        .map((historyItem) => songs.find((s) => s.id === historyItem.id))
-        .filter(Boolean) as Song[]
-      setRecentSongs(recent)
-    } else {
-      // Fallback to localStorage for backward compatibility
-      const recentIds = storage.getRecentlyViewed().slice(0, 10)
-      const recent = recentIds.map((id) => songs.find((s) => s.id === id)).filter(Boolean) as Song[]
-      setRecentSongs(recent)
-    }
-  }, [songs, history])
+  // Handle search input
+  const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
+    setSearchQuery(value)
+    search(value)
+  }, [search])
 
-  useEffect(() => {
-    // Filter songs based on search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      const filtered = songs.filter(
-        (song) =>
-          song.title.toLowerCase().includes(query) ||
-          song.titleTransliteration?.toLowerCase().includes(query) ||
-          song.artist.name.toLowerCase().includes(query) ||
-          song.language.toLowerCase().includes(query) ||
-          song.tags.some((tag) => tag.toLowerCase().includes(query)),
-      )
-      setFilteredSongs(filtered.slice(0, 10))
-    } else {
-      setFilteredSongs([])
-    }
-  }, [searchQuery, songs])
+  // Handle search clear
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("")
+    clearSearch()
+  }, [clearSearch])
 
+  // Handle song selection
+  const handleSelectSong = useCallback((song: Song) => {
+    onSelectSong(song)
+    setShowDropdown(false)
+    setSearchQuery("")
+    clearSearch()
+  }, [onSelectSong, clearSearch])
+
+  // Handle suggestion click
+  const handleSuggestionClick = useCallback((suggestion: string) => {
+    setSearchQuery(suggestion)
+    search(suggestion)
+  }, [search])
+
+  // Close dropdown when clicking outside
   useEffect(() => {
-    // Close dropdown when clicking outside
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsFocused(false)
+        setShowDropdown(false)
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleSelectSong = (song: Song) => {
-    onSelectSong(song)
-    setSearchQuery("")
-    setIsFocused(false)
+  // Show dropdown when focused or has results
+  useEffect(() => {
+    setShowDropdown(isFocused || hasResults || suggestions.length > 0)
+  }, [isFocused, hasResults, suggestions.length])
+
+  const formatNumber = (num: number): string => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
+    return num.toString()
   }
 
-  const showDropdown = isFocused && (searchQuery.trim() ? filteredSongs.length > 0 : recentSongs.length > 0)
-  const displaySongs = searchQuery.trim() ? filteredSongs : recentSongs
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return "success"
+    if (score >= 60) return "warning"
+    return "default"
+  }
+
+  const getScoreLabel = (score: number) => {
+    if (score >= 80) return "Excellent Match"
+    if (score >= 60) return "Good Match"
+    if (score >= 40) return "Fair Match"
+    return "Partial Match"
+  }
 
   return (
-    <Box ref={searchRef} sx={{ position: "relative", width: "100%", maxWidth: 600 }}>
+    <Box ref={searchRef} sx={{ position: "relative", width: "100%" }}>
       <TextField
         fullWidth
-        size="small"
-        placeholder="Search All Songs"
+        placeholder="Search songs, artists, lyrics..."
         value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
+        onChange={handleSearchChange}
         onFocus={() => setIsFocused(true)}
+        onBlur={() => setTimeout(() => setIsFocused(false), 200)}
         InputProps={{
           startAdornment: (
             <InputAdornment position="start">
-              <SearchIcon sx={{ color: "rgb(163, 163, 163)", fontSize: "1.2rem" }} />
+              <SearchIcon sx={{ color: "rgb(163, 163, 163)" }} />
             </InputAdornment>
           ),
-          sx: {
-            bgcolor: "rgb(38, 38, 38)",
-            color: "rgb(250, 250, 250)",
-            borderRadius: 1,
-            fontSize: { xs: "0.875rem", sm: "1rem" },
-            "& .MuiOutlinedInput-notchedOutline": {
-              borderColor: "rgb(64, 64, 64)",
-            },
-            "&:hover .MuiOutlinedInput-notchedOutline": {
-              borderColor: "rgb(82, 82, 82)",
-            },
-            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-              borderColor: "rgb(59, 130, 246)",
-            },
-            "& .MuiInputBase-input": {
-              padding: { xs: "8px 12px", sm: "12px 14px" },
-            },
-          },
+          endAdornment: searchQuery && (
+            <InputAdornment position="end">
+              <IconButton
+                size="small"
+                onClick={handleClearSearch}
+                sx={{ color: "rgb(163, 163, 163)" }}
+              >
+                <ClearIcon />
+              </IconButton>
+            </InputAdornment>
+          ),
         }}
         sx={{
+          "& .MuiOutlinedInput-root": {
+            bgcolor: "rgb(25, 25, 25)",
+            "& fieldset": {
+              borderColor: "rgb(64, 64, 64)",
+            },
+            "&:hover fieldset": {
+              borderColor: "rgb(82, 82, 82)",
+            },
+            "&.Mui-focused fieldset": {
+              borderColor: "rgb(59, 130, 246)",
+            },
+          },
           "& .MuiInputBase-input": {
             color: "rgb(250, 250, 250)",
-            fontSize: "0.875rem",
             "&::placeholder": {
               color: "rgb(163, 163, 163)",
-              opacity: 1,
             },
           },
         }}
       />
 
-      {/* Dropdown with suggestions */}
+      {/* Search Dropdown */}
       {showDropdown && (
         <Paper
           sx={{
             position: "absolute",
-            top: "calc(100% + 4px)",
-            left: { xs: "-8px", sm: 0 },
-            right: { xs: "-8px", sm: 0 },
-            zIndex: 9999,
-            bgcolor: "rgb(30, 30, 30)",
-            border: "1px solid rgb(64, 64, 64)",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 1000,
+            bgcolor: "rgb(25, 25, 25)",
+            border: "1px solid rgb(38, 38, 38)",
             borderRadius: 1,
-            maxHeight: { xs: 300, sm: 400 },
+            mt: 0.5,
+            maxHeight: 400,
             overflow: "auto",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.5)",
-            width: { xs: "calc(100vw - 16px)", sm: "auto" },
-            minWidth: "200px",
-            maxWidth: { xs: "calc(100vw - 16px)", sm: "400px" },
+            "&::-webkit-scrollbar": {
+              width: 6,
+            },
+            "&::-webkit-scrollbar-track": {
+              bgcolor: "rgb(38, 38, 38)",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              bgcolor: "rgb(64, 64, 64)",
+              borderRadius: 3,
+            },
           }}
         >
-          {!searchQuery.trim() && (
-            <Box sx={{ px: 2, py: 1, borderBottom: "1px solid rgb(38, 38, 38)" }}>
-              <Typography
-                variant="caption"
-                sx={{ color: "rgb(163, 163, 163)", display: "flex", alignItems: "center", gap: 0.5 }}
-              >
-                <HistoryIcon sx={{ fontSize: "0.875rem" }} />
-                Recently Viewed
-              </Typography>
+          {loading && (
+            <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
+              <CircularProgress size={24} sx={{ color: "rgb(59, 130, 246)" }} />
             </Box>
           )}
 
-          <List dense disablePadding>
-            {displaySongs.map((song) => (
-              <ListItem key={song.id} disablePadding>
-                <ListItemButton
-                  onClick={() => handleSelectSong(song)}
-                  sx={{
-                    py: { xs: 1.5, sm: 1 },
-                    px: { xs: 2, sm: 1.5 },
-                    display: "flex",
-                    gap: { xs: 1, sm: 1.5 },
-                    "&:hover": {
-                      bgcolor: "rgb(38, 38, 38)",
-                    },
-                  }}
-                >
-                  <CardMedia
-                    component="img"
-                    image={song.thumbnail}
-                    alt={song.title}
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 1,
-                      objectFit: "cover",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}>
-                          {song.title}
-                        </Typography>
-                        <Chip
-                          label={song.originalKey}
-                          size="small"
-                          sx={{
-                            height: 18,
-                            fontSize: "0.65rem",
-                            bgcolor: "rgb(59, 130, 246)",
-                            color: "white",
-                          }}
+          {error && (
+            <Alert severity="error" sx={{ m: 1 }}>
+              {error}
+            </Alert>
+          )}
+
+          {!loading && !error && (
+            <>
+              {/* Search Stats */}
+              {hasResults && (
+                <Box sx={{ px: 2, py: 1, borderBottom: "1px solid rgb(38, 38, 38)" }}>
+                  <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                    Found {results.length} results
+                    {getSearchStats().averageScore > 0 && (
+                      <span> • Avg relevance: {getSearchStats().averageScore.toFixed(1)}%</span>
+                    )}
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Search Results */}
+              {hasResults && (
+                <List dense disablePadding>
+                  {getTopResults(10).map((result, index) => (
+                    <ListItem key={result.song.id} disablePadding>
+                      <ListItemButton
+                        onClick={() => handleSelectSong(result.song)}
+                        sx={{
+                          "&:hover": {
+                            bgcolor: "rgb(30, 30, 30)",
+                          },
+                        }}
+                      >
+                        <ListItemAvatar>
+                          <Avatar
+                            src={result.song.thumbnail}
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              bgcolor: "rgb(38, 38, 38)",
+                            }}
+                          >
+                            <PlayArrowIcon sx={{ color: "rgb(163, 163, 163)" }} />
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                              <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}>
+                                {result.song.title}
+                              </Typography>
+                              <Chip
+                                label={`${result.score.toFixed(0)}%`}
+                                size="small"
+                                color={getScoreColor(result.score) as any}
+                                variant="outlined"
+                                sx={{
+                                  height: 18,
+                                  fontSize: "0.65rem",
+                                  fontWeight: 600,
+                                }}
+                              />
+                              {result.song.trending && (
+                                <TrendingUpIcon sx={{ fontSize: "0.8rem", color: "rgb(59, 130, 246)" }} />
+                              )}
+                            </Box>
+                          }
+                          secondary={
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                                {result.song.artist.name}
+                              </Typography>
+                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                                •
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                                {result.song.language}
+                              </Typography>
+                              {result.song.hasVideo && (
+                                <>
+                                  <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                                    •
+                                  </Typography>
+                                  <ThumbUpIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
+                                  <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                                    {formatNumber(result.song.youtubeLikes)}
+                                  </Typography>
+                                </>
+                              )}
+                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                                •
+                              </Typography>
+                              <VisibilityIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
+                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                                {formatNumber(result.song.viewCount)}
+                              </Typography>
+                            </Box>
+                          }
                         />
-                      </Box>
-                    }
-                    secondary={
-                      <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                        {song.artist.name} • {song.language}
-                      </Typography>
-                    }
-                  />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+
+              {/* No Results */}
+              {isEmpty && (
+                <Box sx={{ p: 2, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ color: "rgb(163, 163, 163)" }}>
+                    No songs found for "{searchQuery}"
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", mt: 1, display: "block" }}>
+                    Try different keywords or check spelling
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Search Suggestions */}
+              {suggestions.length > 0 && !hasResults && (
+                <>
+                  <Divider />
+                  <Box sx={{ px: 2, py: 1 }}>
+                    <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontWeight: 600 }}>
+                      Suggestions
+                    </Typography>
+                  </Box>
+                  <List dense disablePadding>
+                    {suggestions.map((suggestion, index) => (
+                      <ListItem key={index} disablePadding>
+                        <ListItemButton
+                          onClick={() => handleSuggestionClick(suggestion)}
+                          sx={{
+                            "&:hover": {
+                              bgcolor: "rgb(30, 30, 30)",
+                            },
+                          }}
+                        >
+                          <ListItemText
+                            primary={
+                              <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
+                                {suggestion}
+                              </Typography>
+                            }
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                </>
+              )}
+
+              {/* Cache Status (Development) */}
+              {process.env.NODE_ENV === 'development' && (
+                <Box sx={{ px: 2, py: 1, borderTop: "1px solid rgb(38, 38, 38)" }}>
+                  <CacheStatus showDetails={false} />
+                </Box>
+              )}
+            </>
+          )}
         </Paper>
       )}
     </Box>

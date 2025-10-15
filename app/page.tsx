@@ -1,19 +1,23 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Box, AppBar, Toolbar, Typography, IconButton, Drawer, useMediaQuery, useTheme, CircularProgress } from "@mui/material"
+import { Box, AppBar, Toolbar, Typography, IconButton, Drawer, useMediaQuery, useTheme, CircularProgress, Stack } from "@mui/material"
 import MenuIcon from "@mui/icons-material/Menu"
 import MenuBookIcon from "@mui/icons-material/MenuBook"
 import ListIcon from "@mui/icons-material/List"
 import { UnifiedSidebar } from "@/components/unified-sidebar"
+import { FilterSidebar } from "@/components/filter-sidebar"
 import { SongViewer } from "@/components/song-viewer"
 import { PresentationMode } from "@/components/presentation-mode"
 import type { ViewMode } from "@/components/language-sidebar"
+import type { FilterMode } from "@/components/filter-sidebar"
 import { SearchBar } from "@/components/search-bar"
+import { LanguageDropdown } from "@/components/language-dropdown"
+import { InfiniteSongList } from "@/components/infinite-song-list"
 import { LoginButton } from "@/components/auth/login-button"
 import { UserMenu } from "@/components/auth/user-menu"
 import { useAuth } from "@/lib/hooks/useAuth"
-import { useSongs, useAllSongs } from "@/lib/hooks/useSongs"
+import { useSongs, useCacheInitialization, useLazySongList, useLanguageCounts, useInfiniteSongs } from "@/lib/hooks/useSongs"
 import { useFavorites } from "@/lib/hooks/useFavorites"
 import { usePlaylists } from "@/lib/hooks/usePlaylists"
 import { useHistory } from "@/lib/hooks/useHistory"
@@ -23,12 +27,13 @@ const SIDEBAR_WIDTH = 400
 
 export default function Home() {
   const [selectedSong, setSelectedSong] = useState<Song | null>(null)
-  const [selectedLanguage, setSelectedLanguage] = useState("Malayalam")
-  const [viewMode, setViewMode] = useState<ViewMode>("all")
+  const [selectedLanguage, setSelectedLanguage] = useState("Telugu")
+  const [viewMode, setViewMode] = useState<ViewMode>("all-songs")
+  const [filterMode, setFilterMode] = useState<FilterMode>("all")
   const [mobileOpen, setMobileOpen] = useState(false)
   const [presentationMode, setPresentationMode] = useState(false)
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null)
-  const [sidebarView, setSidebarView] = useState<'navigation' | 'songList'>('navigation')
+  const [sidebarView, setSidebarView] = useState<'navigation' | 'songList'>('songList')
 
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("lg"))
@@ -37,7 +42,34 @@ export default function Home() {
   const { user, loading: authLoading } = useAuth()
   const { favorites, loading: favoritesLoading, toggleFavoriteStatus, checkIsFavorite } = useFavorites()
   const { playlists, loading: playlistsLoading, createPlaylist, addSongToPlaylist, removeSongFromPlaylist } = usePlaylists()
+  
+  // Initialize cache
+  const { isInitialized, isInitializing, cacheStats } = useCacheInitialization()
   const { history, loading: historyLoading, addToHistory } = useHistory()
+  
+  // Lazy loading for song lists
+  const { 
+    songs: lazySongs, 
+    loading: lazyLoading, 
+    error: lazyError, 
+    loadSongs: loadLazySongs, 
+    loadFullSong, 
+    isSongFullyLoaded, 
+    isSongLoading 
+  } = useLazySongList()
+
+  // Language counts
+  const { languageCounts, totalCount, loading: countsLoading } = useLanguageCounts()
+
+  // Infinite scroll for all songs
+  const { 
+    songs: allSongs, 
+    loading: allSongsLoading, 
+    error: allSongsError, 
+    hasMore, 
+    loadMore, 
+    reset: resetAllSongs 
+  } = useInfiniteSongs()
 
   // Wrapper functions to handle async operations
   const handleToggleFavorite = async (songId: string) => {
@@ -90,9 +122,6 @@ export default function Home() {
     console.warn('handleRemoveFromPlaylistSingleArg called without songId')
   }
   
-  // All songs for navbar search (across all languages)
-  const { songs: allSongs, loading: allSongsLoading, error: allSongsError } = useAllSongs()
-  
   // Songs data based on view mode (for sidebar)
   const songsOptions = {
     language: viewMode === "all" ? selectedLanguage : undefined,
@@ -105,7 +134,7 @@ export default function Home() {
     setMobileOpen(!mobileOpen)
   }
 
-  const handleSelectSong = (song: Song) => {
+  const handleSelectSong = async (song: Song) => {
     setSelectedSong(song)
     // Track view in history for both authenticated and anonymous users
     if (song?.id && typeof song.id === 'string') {
@@ -121,10 +150,46 @@ export default function Home() {
     if (isMobile) {
       setMobileOpen(false)
     }
+    
+    // Load full song data if not already loaded
+    if (!isSongFullyLoaded(song.id)) {
+      const fullSong = await loadFullSong(song.id)
+      if (fullSong) {
+        setSelectedSong(fullSong)
+      }
+    }
   }
 
   const handleShowSongList = () => {
     setSidebarView('songList')
+  }
+
+  const handleShowAllSongs = () => {
+    setViewMode('all-songs')
+    setSidebarView('songList')
+  }
+
+  const handleLanguageChange = (language: string) => {
+    setSelectedLanguage(language)
+    setViewMode('all-songs') // Set all-songs as default
+    setFilterMode('all') // Reset filter to all
+    setSidebarView('songList') // Show song list view
+    // Reset all songs when language changes
+    resetAllSongs(language)
+  }
+
+  const handleFilterModeChange = (mode: FilterMode) => {
+    setFilterMode(mode)
+    // Map filter modes to view modes
+    const viewModeMap: Record<FilterMode, ViewMode> = {
+      'all': 'all-songs',
+      'trending': 'trending',
+      'favorites': 'favorites',
+      'recent': 'recent',
+      'all-time-hits': 'all-time-hits',
+      'playlists': 'playlists',
+    }
+    setViewMode(viewModeMap[mode])
   }
 
   const handleShowNavigation = () => {
@@ -144,16 +209,26 @@ export default function Home() {
 
   const getPlaylistSongs = (): Song[] => {
     if (selectedPlaylist) {
-      // Find songs that match the playlist's song IDs
-      return allSongs.filter(song => 
+      // Find songs that match the playlist's song IDs from the current songs
+      return songs.filter(song =>
         selectedPlaylist.songIds?.includes(song.id)
       )
     }
     return []
   }
 
+  // Prepare language data for dropdown
+  const languageOptions = [
+    { code: 'all', name: 'All Languages', count: totalCount || 0 },
+    { code: 'Malayalam', name: 'Malayalam', count: languageCounts?.Malayalam || 0 },
+    { code: 'English', name: 'English', count: languageCounts?.English || 0 },
+    { code: 'Hindi', name: 'Hindi', count: languageCounts?.Hindi || 0 },
+    { code: 'Tamil', name: 'Tamil', count: languageCounts?.Tamil || 0 },
+    { code: 'Telugu', name: 'Telugu', count: languageCounts?.Telugu || 0 },
+  ].filter(lang => lang.count > 0)
+
   // Show loading state
-  if (authLoading || songsLoading) {
+  if (authLoading || songsLoading || countsLoading) {
     return (
       <Box sx={{ 
         display: "flex", 
@@ -205,7 +280,18 @@ export default function Home() {
                 <MenuIcon />
               </IconButton>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <SearchBar songs={allSongs} onSelectSong={handleSelectSong} history={history} />
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <SearchBar 
+                    onSelectSong={handleSelectSong} 
+                    songs={songs}
+                    language={selectedLanguage}
+                  />
+                  <LanguageDropdown 
+                    selectedLanguage={selectedLanguage}
+                    onLanguageChange={handleLanguageChange}
+                    languages={languageOptions}
+                  />
+                </Stack>
               </Box>
             </>
           ) : (
@@ -238,7 +324,18 @@ export default function Home() {
                 px: 2,
                 minWidth: 0
               }}>
-                <SearchBar songs={allSongs} onSelectSong={handleSelectSong} history={history} />
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ width: "100%", maxWidth: 600 }}>
+                  <SearchBar 
+                    onSelectSong={handleSelectSong} 
+                    songs={songs}
+                    language={selectedLanguage}
+                  />
+                  <LanguageDropdown 
+                    selectedLanguage={selectedLanguage}
+                    onLanguageChange={handleLanguageChange}
+                    languages={languageOptions}
+                  />
+                </Stack>
               </Box>
               <Box sx={{ 
                 display: "flex", 
@@ -288,28 +385,19 @@ export default function Home() {
               },
             }}
           >
-            <UnifiedSidebar
-              viewMode={viewMode}
+            <FilterSidebar
               selectedLanguage={selectedLanguage}
-              selectedPlaylist={selectedPlaylist}
-              songs={allSongs}
-              filteredSongs={songs}
-              playlists={playlists}
+              onLanguageChange={handleLanguageChange}
+              filterMode={filterMode}
+              onFilterModeChange={handleFilterModeChange}
+              songs={songs}
               history={history}
-              loading={allSongsLoading}
-              error={allSongsError}
-              onViewModeChange={handleViewModeChange}
-              onLanguageChange={setSelectedLanguage}
+              favoritesCount={favorites.length}
+              recentCount={history.length}
+              playlistsCount={playlists.length}
+              allSongsCount={languageCounts?.[selectedLanguage] || 0}
               onSelectSong={handleSelectSong}
-              onSelectPlaylist={handleSelectPlaylist}
-              onCreatePlaylist={createPlaylist}
-              onFavoritesChange={handleToggleFavoriteNoArgs}
-              onPlaylistAdd={handleAddToPlaylist}
-              onPlaylistRemove={handleRemoveFromPlaylist}
-              checkIsFavorite={handleCheckIsFavoriteSync}
-              sidebarView={sidebarView}
-              onShowNavigation={handleShowNavigation}
-              onShowSongList={handleShowSongList}
+              onShowAllSongs={handleShowAllSongs}
             />
           </Drawer>
         ) : (
@@ -327,28 +415,19 @@ export default function Home() {
             }}
             open
           >
-            <UnifiedSidebar
-              viewMode={viewMode}
+            <FilterSidebar
               selectedLanguage={selectedLanguage}
-              selectedPlaylist={selectedPlaylist}
-              songs={allSongs}
-              filteredSongs={songs}
-              playlists={playlists}
+              onLanguageChange={handleLanguageChange}
+              filterMode={filterMode}
+              onFilterModeChange={handleFilterModeChange}
+              songs={songs}
               history={history}
-              loading={allSongsLoading}
-              error={allSongsError}
-              onViewModeChange={handleViewModeChange}
-              onLanguageChange={setSelectedLanguage}
+              favoritesCount={favorites.length}
+              recentCount={history.length}
+              playlistsCount={playlists.length}
+              allSongsCount={languageCounts?.[selectedLanguage] || 0}
               onSelectSong={handleSelectSong}
-              onSelectPlaylist={handleSelectPlaylist}
-              onCreatePlaylist={createPlaylist}
-              onFavoritesChange={handleToggleFavoriteNoArgs}
-              onPlaylistAdd={handleAddToPlaylist}
-              onPlaylistRemove={handleRemoveFromPlaylist}
-              checkIsFavorite={handleCheckIsFavoriteSync}
-              sidebarView={sidebarView}
-              onShowNavigation={handleShowNavigation}
-              onShowSongList={handleShowSongList}
+              onShowAllSongs={handleShowAllSongs}
             />
           </Drawer>
         )}
