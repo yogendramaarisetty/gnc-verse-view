@@ -2,14 +2,23 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { isSupabaseConfigured } from '@/lib/supabase/build-safe-client'
 import type { User } from '@supabase/supabase-js'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  
+  // Check if Supabase is configured before creating client
+  const isConfigured = isSupabaseConfigured()
+  const supabase = isConfigured ? createClient() : null
 
   useEffect(() => {
+    if (!isConfigured || !supabase) {
+      setLoading(false)
+      return
+    }
+
     // Get initial session
     const getInitialSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -28,10 +37,12 @@ export function useAuth() {
     )
 
     return () => subscription.unsubscribe()
-  }, [supabase.auth])
+  }, [isConfigured, supabase])
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    if (supabase) {
+      await supabase.auth.signOut()
+    }
   }
 
   return {
