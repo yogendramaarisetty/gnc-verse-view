@@ -8,7 +8,12 @@
     "lint": "next lint",
     "start": "next start",
     "load:songs": "tsx scripts/batch-load-songs.ts",
-    "migrate:json-id": "tsx scripts/add-json-id-migration.sql"
+    "migrate:json-id": "tsx scripts/add-json-id-migration.sql",
+    "migrate": "tsx scripts/migrate-database.ts migrate",
+    "migrate:status": "tsx scripts/migrate-database.ts status",
+    "migrate:test": "tsx scripts/test-migrations.ts",
+    "deploy": "./scripts/deploy-with-migrations.sh",
+    "deploy:skip-migrations": "./scripts/deploy-with-migrations.sh --skip-migrations"
   },
   "dependencies": {
     "@emotion/cache": "latest",
