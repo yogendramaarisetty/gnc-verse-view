@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { supabaseLogger } from '@/lib/utils/supabase-logger'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     
     const language = searchParams.get('language')
@@ -45,7 +46,21 @@ export async function GET(request: NextRequest) {
     // Apply pagination
     query = query.range(offset, offset + limit - 1)
 
+    const startTime = Date.now()
     const { data: songs, error } = await query
+    const duration = Date.now() - startTime
+
+    // Log the query
+    supabaseLogger.log({
+      method: 'GET',
+      table: 'songs',
+      operation: 'select',
+      url: `songs.select(language:${language || 'all'}, limit:${limit})`,
+      resultCount: songs?.length || 0,
+      duration,
+      status: error ? 'error' : 'success',
+      error: error?.message
+    })
 
     if (error) {
       console.error('Error fetching songs:', error)
@@ -88,7 +103,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     
     // Check if user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser()

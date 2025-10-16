@@ -232,12 +232,44 @@ export default function Home() {
     return (
       <Box sx={{ 
         display: "flex", 
+        flexDirection: "column",
         justifyContent: "center", 
         alignItems: "center", 
         height: "100vh",
-        bgcolor: "rgb(10, 10, 10)"
+        bgcolor: "rgb(10, 10, 10)",
+        p: 3,
+        // Keyframes for loading animation
+        "@keyframes loading-shimmer": {
+          "0%": {
+            transform: "translateX(-100%)",
+          },
+          "100%": {
+            transform: "translateX(100%)",
+          },
+        },
       }}>
-        <CircularProgress sx={{ color: "rgb(59, 130, 246)" }} />
+        <Box sx={{ 
+          width: "60%", 
+          height: 4, 
+          bgcolor: "rgb(38, 38, 38)", 
+          borderRadius: 2, 
+          overflow: "hidden",
+          position: "relative",
+          mb: 2
+        }}>
+          <Box sx={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            height: "100%",
+            width: "100%",
+            background: "linear-gradient(90deg, transparent, rgb(59, 130, 246), transparent)",
+            animation: "loading-shimmer 1.5s infinite",
+          }} />
+        </Box>
+        <Typography variant="body2" sx={{ color: "rgb(163, 163, 163)" }}>
+          Loading application...
+        </Typography>
       </Box>
     )
   }
@@ -320,11 +352,12 @@ export default function Home() {
               <Box sx={{ 
                 flex: 1, 
                 display: "flex", 
-                justifyContent: "center", 
+                justifyContent: "flex-start", 
                 px: 2,
-                minWidth: 0
+                minWidth: 0,
+                ml: { xs: 0, lg: `${SIDEBAR_WIDTH}px` } // Only apply margin on desktop
               }}>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ width: "100%", maxWidth: 600 }}>
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ width: "100%", maxWidth: "none" }}>
                   <SearchBar 
                     onSelectSong={handleSelectSong} 
                     songs={songs}

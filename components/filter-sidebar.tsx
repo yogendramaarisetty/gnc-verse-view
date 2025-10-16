@@ -16,9 +16,12 @@ import HistoryIcon from "@mui/icons-material/History"
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
 import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay"
 import FilterListIcon from "@mui/icons-material/FilterList"
+import SearchIcon from "@mui/icons-material/Search"
 import type { Song } from "@/lib/types"
 import type { HistorySong } from "@/lib/api/history"
-import { EnhancedSongList } from "@/components/enhanced-song-list"
+import { InfiniteSongList } from "@/components/infinite-song-list"
+import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll"
+import { SearchBar } from "@/components/search-bar"
 
 export type FilterMode = 
   | "all"
@@ -57,6 +60,22 @@ export function FilterSidebar({
   onSelectSong,
   onShowAllSongs,
 }: FilterSidebarProps) {
+  const [showSearch, setShowSearch] = useState(false)
+  
+  // Use infinite scroll for all songs
+  const {
+    songs: infiniteSongs,
+    loading,
+    loadingMore,
+    error,
+    hasMore,
+    loadMore,
+    reset,
+  } = useInfiniteScroll({
+    language: selectedLanguage,
+    pageSize: 20,
+    initialLoad: 20
+  })
 
   // Calculate counts for each filter
   const filterCounts = useMemo(() => {
@@ -72,6 +91,14 @@ export function FilterSidebar({
       playlists: playlistsCount,
     }
   }, [songs, allSongsCount, favoritesCount, recentCount, playlistsCount])
+
+  // Reset infinite scroll when filter mode changes
+  const handleFilterModeChange = (mode: FilterMode) => {
+    onFilterModeChange(mode)
+    if (mode === 'all') {
+      reset() // Reset infinite scroll for all songs
+    }
+  }
 
   const filterOptions = [
     {
@@ -126,6 +153,49 @@ export function FilterSidebar({
       bgcolor: "rgb(20, 20, 20)",
       borderRight: "1px solid rgb(38, 38, 38)",
     }}>
+      {/* Search Bar */}
+      <Box sx={{ 
+        p: 2, 
+        borderBottom: "1px solid rgb(38, 38, 38)",
+        bgcolor: "rgb(25, 25, 25)",
+      }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+          <Typography variant="caption" sx={{ 
+            color: "rgb(163, 163, 163)", 
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            fontWeight: 600,
+            flex: 1,
+          }}>
+            Search & Filter
+          </Typography>
+          <Tooltip title={showSearch ? "Hide search" : "Show search"}>
+            <IconButton
+              size="small"
+              onClick={() => setShowSearch(!showSearch)}
+              sx={{ 
+                color: showSearch ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                "&:hover": {
+                  bgcolor: "rgb(30, 30, 30)",
+                }
+              }}
+            >
+              <SearchIcon sx={{ fontSize: "1rem" }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+        
+        {showSearch && (
+          <Box sx={{ mb: 2 }}>
+            <SearchBar 
+              onSelectSong={onSelectSong} 
+              songs={songs}
+              language={selectedLanguage}
+            />
+          </Box>
+        )}
+      </Box>
+
       {/* Filter Chips - Horizontal Scroll */}
       <Box sx={{ 
         p: 2, 
@@ -168,7 +238,7 @@ export function FilterSidebar({
               key={filter.id}
               label={`${filter.label} (${filter.count})`}
               icon={filter.icon}
-              onClick={() => onFilterModeChange(filter.id)}
+              onClick={() => handleFilterModeChange(filter.id)}
               variant={filterMode === filter.id ? "filled" : "outlined"}
               color={filterMode === filter.id ? filter.color : "default"}
               size="small"
@@ -200,14 +270,35 @@ export function FilterSidebar({
 
       {/* Content Area - Song List */}
       <Box sx={{ flex: 1, overflow: "hidden" }}>
-        <EnhancedSongList
-          songs={songs}
-          onSelectSong={onSelectSong}
-          selectedSongId={undefined}
-          selectedLanguage={selectedLanguage}
-          viewMode={filterMode === 'all' ? 'all-songs' : filterMode}
-          history={history}
-        />
+        {filterMode === 'all' ? (
+          <InfiniteSongList
+            songs={infiniteSongs}
+            onSelectSong={onSelectSong}
+            selectedSongId={undefined}
+            selectedLanguage={selectedLanguage}
+            viewMode="all-songs"
+            history={history}
+            onLoadMore={loadMore}
+            hasMore={hasMore}
+            loading={loading}
+            loadingMore={loadingMore}
+            error={error}
+          />
+        ) : (
+          <InfiniteSongList
+            songs={songs}
+            onSelectSong={onSelectSong}
+            selectedSongId={undefined}
+            selectedLanguage={selectedLanguage}
+            viewMode={filterMode}
+            history={history}
+            onLoadMore={() => {}} // No infinite scroll for filtered views
+            hasMore={false}
+            loading={false}
+            loadingMore={false}
+            error={null}
+          />
+        )}
       </Box>
     </Box>
   )

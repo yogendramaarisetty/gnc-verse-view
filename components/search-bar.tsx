@@ -29,8 +29,10 @@ import VisibilityIcon from "@mui/icons-material/Visibility"
 import StarIcon from "@mui/icons-material/Star"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import type { Song } from "@/lib/types"
-import { useFuzzySearch } from "@/lib/hooks/useFuzzySearch"
+import { useBackendSearch } from "@/lib/hooks/useBackendSearch"
 import { CacheStatus } from "./cache-status"
+import { EnhancedCacheStatus } from "./enhanced-cache-status"
+import { SupabaseLogs } from "./supabase-logs"
 
 interface SearchBarProps {
   onSelectSong: (song: Song) => void
@@ -47,28 +49,38 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
   const {
     query,
     results,
-    suggestions,
     loading,
     error,
     search,
     clearSearch,
+    clearBackendCache,
+    getCacheStats,
     hasResults,
     isEmpty,
     getSearchStats,
-    getTopResults
-  } = useFuzzySearch({
-    songs,
+    getTopResults,
+    getMatchQuality,
+    getSearchInsights,
+    isPerfectMatch,
+    cacheStats,
+    isBackendLoading
+  } = useBackendSearch({
     language,
     debounceMs: 300,
-    minQueryLength: 1
+    minQueryLength: 1,
+    maxResults: 15
   })
 
-  // Handle search input
+  // Handle search input with optimization
   const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value
     setSearchQuery(value)
-    search(value)
-  }, [search])
+    
+    // Only trigger search if value has actually changed
+    if (value !== query) {
+      search(value)
+    }
+  }, [search, query])
 
   // Handle search clear
   const handleClearSearch = useCallback(() => {
@@ -84,11 +96,11 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
     clearSearch()
   }, [onSelectSong, clearSearch])
 
-  // Handle suggestion click
-  const handleSuggestionClick = useCallback((suggestion: string) => {
-    setSearchQuery(suggestion)
-    search(suggestion)
-  }, [search])
+  // Handle cache clear
+  const handleClearCache = useCallback(async () => {
+    await clearBackendCache()
+    // Optionally show a success message
+  }, [clearBackendCache])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -104,8 +116,42 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
 
   // Show dropdown when focused or has results
   useEffect(() => {
-    setShowDropdown(isFocused || hasResults || suggestions.length > 0)
-  }, [isFocused, hasResults, suggestions.length])
+    setShowDropdown(isFocused || hasResults)
+  }, [isFocused, hasResults])
+
+  // Debug logging for results
+  useEffect(() => {
+    console.log('Search Results Debug:', {
+      hasResults,
+      resultsCount: results.length,
+      loading,
+      query,
+      firstResult: results[0]
+    })
+  }, [hasResults, results, loading, query])
+
+  // Optimize loading state to prevent flicker
+  const [showLoading, setShowLoading] = useState(false)
+  useEffect(() => {
+    if (loading) {
+      setShowLoading(true)
+    } else {
+      // Delay hiding loading to prevent flicker, but only if we have results or no query
+      const timer = setTimeout(() => {
+        setShowLoading(false)
+      }, loading ? 0 : 150) // Show loading immediately, hide with delay
+      return () => clearTimeout(timer)
+    }
+  }, [loading])
+
+  // Show loading when we have a query but no results yet
+  const shouldShowLoading = showLoading || (query.trim().length > 0 && !hasResults && !error && loading)
+  
+  // Show loading state with better conditions - show loading during debounce and API call
+  const isLoading = loading || (query.trim().length > 0 && !hasResults && !error)
+  
+  // Show linear loader when backend is loading
+  const showLinearLoader = isBackendLoading || (loading && hasResults)
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
@@ -113,21 +159,9 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
     return num.toString()
   }
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "success"
-    if (score >= 60) return "warning"
-    return "default"
-  }
-
-  const getScoreLabel = (score: number) => {
-    if (score >= 80) return "Excellent Match"
-    if (score >= 60) return "Good Match"
-    if (score >= 40) return "Fair Match"
-    return "Partial Match"
-  }
 
   return (
-    <Box ref={searchRef} sx={{ position: "relative", width: "100%" }}>
+    <Box ref={searchRef} sx={{ position: "relative", width: "100%", minWidth: { xs: 200, sm: 300 } }}>
       <TextField
         fullWidth
         placeholder="Search songs, artists, lyrics..."
@@ -156,6 +190,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
         sx={{
           "& .MuiOutlinedInput-root": {
             bgcolor: "rgb(25, 25, 25)",
+            position: "relative",
             "& fieldset": {
               borderColor: "rgb(64, 64, 64)",
             },
@@ -165,6 +200,20 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
             "&.Mui-focused fieldset": {
               borderColor: "rgb(59, 130, 246)",
             },
+            // Linear loader overlay
+            ...(showLinearLoader && {
+              "&::after": {
+                content: '""',
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: "2px",
+                background: "linear-gradient(90deg, transparent, rgb(59, 130, 246), transparent)",
+                animation: "loading-shimmer 1.5s infinite",
+                zIndex: 1,
+              },
+            }),
           },
           "& .MuiInputBase-input": {
             color: "rgb(250, 250, 250)",
@@ -172,6 +221,17 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
               color: "rgb(163, 163, 163)",
             },
           },
+          // Keyframes for loading animation
+          ...(showLinearLoader && {
+            "@keyframes loading-shimmer": {
+              "0%": {
+                transform: "translateX(-100%)",
+              },
+              "100%": {
+                transform: "translateX(100%)",
+              },
+            },
+          }),
         }}
       />
 
@@ -188,7 +248,8 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
             border: "1px solid rgb(38, 38, 38)",
             borderRadius: 1,
             mt: 0.5,
-            maxHeight: 400,
+            maxHeight: 500,
+            minWidth: { xs: 300, sm: 400, md: 500, lg: 600 },
             overflow: "auto",
             "&::-webkit-scrollbar": {
               width: 6,
@@ -200,11 +261,41 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
               bgcolor: "rgb(64, 64, 64)",
               borderRadius: 3,
             },
+            // Keyframes for loading animation
+            "@keyframes loading-shimmer": {
+              "0%": {
+                transform: "translateX(-100%)",
+              },
+              "100%": {
+                transform: "translateX(100%)",
+              },
+            },
           }}
         >
-          {loading && (
-            <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
-              <CircularProgress size={24} sx={{ color: "rgb(59, 130, 246)" }} />
+          {isLoading && (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", p: 3 }}>
+              <Box sx={{ 
+                width: "100%", 
+                height: 4, 
+                bgcolor: "rgb(38, 38, 38)", 
+                borderRadius: 2, 
+                overflow: "hidden",
+                position: "relative",
+                mb: 2
+              }}>
+                <Box sx={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  height: "100%",
+                  width: "100%",
+                  background: "linear-gradient(90deg, transparent, rgb(59, 130, 246), transparent)",
+                  animation: "loading-shimmer 1.5s infinite",
+                }} />
+              </Box>
+              <Typography variant="body2" sx={{ color: "rgb(163, 163, 163)" }}>
+                {loading ? `Searching for "${query}"...` : `Preparing search for "${query}"...`}
+              </Typography>
             </Box>
           )}
 
@@ -214,16 +305,46 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
             </Alert>
           )}
 
-          {!loading && !error && (
+          {!isLoading && !error && (
             <>
               {/* Search Stats */}
               {hasResults && (
                 <Box sx={{ px: 2, py: 1, borderBottom: "1px solid rgb(38, 38, 38)" }}>
-                  <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                    Found {results.length} results
-                    {getSearchStats().averageScore > 0 && (
-                      <span> • Avg relevance: {getSearchStats().averageScore.toFixed(1)}%</span>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                      Found {results.length} results
+                    </Typography>
+                    {isPerfectMatch && (
+                      <Chip
+                        label="Perfect Match"
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                        sx={{ height: 18, fontSize: "0.65rem" }}
+                      />
                     )}
+                    {cacheStats?.cached && (
+                      <Chip
+                        label="Cached"
+                        size="small"
+                        color="info"
+                        variant="outlined"
+                        sx={{ height: 18, fontSize: "0.65rem" }}
+                      />
+                    )}
+                    {showLinearLoader && (
+                      <Chip
+                        label="Updating..."
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                        sx={{ height: 18, fontSize: "0.65rem" }}
+                      />
+                    )}
+                  </Box>
+                  <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                    {getSearchInsights().join(' • ')}
+                    {showLinearLoader && ' • Reordering by relevance...'}
                   </Typography>
                 </Box>
               )}
@@ -231,82 +352,132 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
               {/* Search Results */}
               {hasResults && (
                 <List dense disablePadding>
-                  {getTopResults(10).map((result, index) => (
-                    <ListItem key={result.song.id} disablePadding>
+                  {getTopResults(10)
+                    .filter(result => result && result.song) // Filter out invalid results
+                    .map((result, index) => (
+                    <ListItem key={result.song?.id || `result-${index}`} disablePadding>
                       <ListItemButton
-                        onClick={() => handleSelectSong(result.song)}
+                        onClick={() => result.song && handleSelectSong(result.song)}
                         sx={{
+                          py: 1.5,
+                          px: 2,
                           "&:hover": {
                             bgcolor: "rgb(30, 30, 30)",
                           },
                         }}
                       >
                         <ListItemAvatar>
-                          <Avatar
-                            src={result.song.thumbnail}
+                          <Box
                             sx={{
-                              width: 40,
+                              width: 50,
                               height: 40,
+                              borderRadius: 1,
                               bgcolor: "rgb(38, 38, 38)",
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              position: 'relative',
+                              overflow: 'hidden',
+                              backgroundImage: result.song?.thumbnail ? `url(${result.song.thumbnail})` : 'none',
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              '&:hover': {
+                                opacity: 0.8,
+                              }
                             }}
                           >
-                            <PlayArrowIcon sx={{ color: "rgb(163, 163, 163)" }} />
-                          </Avatar>
+                            {/* Fallback icon when no thumbnail or image fails to load */}
+                            <PlayArrowIcon 
+                              sx={{ 
+                                color: "rgb(163, 163, 163)", 
+                                fontSize: 20,
+                                display: result.song?.thumbnail ? 'none' : 'block'
+                              }} 
+                            />
+                          </Box>
                         </ListItemAvatar>
                         <ListItemText
                           primary={
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                              <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}>
-                                {result.song.title}
-                              </Typography>
-                              <Chip
-                                label={`${result.score.toFixed(0)}%`}
-                                size="small"
-                                color={getScoreColor(result.score) as any}
-                                variant="outlined"
-                                sx={{
-                                  height: 18,
-                                  fontSize: "0.65rem",
-                                  fontWeight: 600,
-                                }}
-                              />
-                              {result.song.trending && (
-                                <TrendingUpIcon sx={{ fontSize: "0.8rem", color: "rgb(59, 130, 246)" }} />
+                            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, mb: 0.5 }}>
+                              {/* Main Title */}
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}
+                                  dangerouslySetInnerHTML={{ 
+                                    __html: result.highlights?.title || result.song?.title || 'Unknown Title'
+                                  }}
+                                />
+                                <Chip
+                                  label={getMatchQuality(result.score).label}
+                                  size="small"
+                                  color={getMatchQuality(result.score).color as any}
+                                  variant="outlined"
+                                  sx={{
+                                    height: 18,
+                                    fontSize: "0.65rem",
+                                    fontWeight: 600,
+                                  }}
+                                />
+                                {result.song?.trending && (
+                                  <TrendingUpIcon sx={{ fontSize: "0.8rem", color: "rgb(59, 130, 246)" }} />
+                                )}
+                              </Box>
+                              
+                              {/* Transliterated Title */}
+                              {result.song?.titleTransliteration && (
+                                <Typography 
+                                  variant="caption" 
+                                  sx={{ 
+                                    color: "rgb(163, 163, 163)", 
+                                    fontStyle: "italic",
+                                    ml: 0.5
+                                  }}
+                                >
+                                  {result.song.titleTransliteration}
+                                </Typography>
                               )}
                             </Box>
                           }
                           secondary={
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                              <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                                {result.song.artist.name}
-                              </Typography>
-                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                                •
-                              </Typography>
-                              <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                                {result.song.language}
-                              </Typography>
-                              {result.song.hasVideo && (
-                                <>
-                                  <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                                    •
-                                  </Typography>
-                                  <ThumbUpIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
-                                  <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                                    {formatNumber(result.song.youtubeLikes)}
-                                  </Typography>
-                                </>
-                              )}
-                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                                •
-                              </Typography>
-                              <VisibilityIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
-                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                                {formatNumber(result.song.viewCount)}
-                              </Typography>
-                            </Box>
+                            <Typography 
+                              component="span"
+                              variant="caption" 
+                              sx={{ color: "rgb(163, 163, 163)" }}
+                              dangerouslySetInnerHTML={{ 
+                                __html: result.highlights?.artist || result.song?.artist?.name || 'Unknown Artist'
+                              }}
+                            />
                           }
                         />
+                        
+                        {/* Additional info outside ListItemText to avoid hydration issues */}
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 9, mt: 0.5, flexWrap: "wrap" }}>
+                          <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                            •
+                          </Typography>
+                          <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                            {result.song?.language || 'Unknown'}
+                          </Typography>
+                          {result.song?.hasVideo && (
+                            <>
+                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                                •
+                              </Typography>
+                              <ThumbUpIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
+                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                                {formatNumber(result.song?.youtubeLikes || 0)}
+                              </Typography>
+                            </>
+                          )}
+                          <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                            •
+                          </Typography>
+                          <VisibilityIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
+                          <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
+                            {formatNumber(result.song?.viewCount || 0)}
+                          </Typography>
+                        </Box>
                       </ListItemButton>
                     </ListItem>
                   ))}
@@ -325,44 +496,35 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                 </Box>
               )}
 
-              {/* Search Suggestions */}
-              {suggestions.length > 0 && !hasResults && (
+              {/* Cache Management */}
+              {hasResults && (
                 <>
                   <Divider />
-                  <Box sx={{ px: 2, py: 1 }}>
+                  <Box sx={{ px: 2, py: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontWeight: 600 }}>
-                      Suggestions
+                      Cache Management
                     </Typography>
+                    <IconButton
+                      size="small"
+                      onClick={handleClearCache}
+                      sx={{ color: "rgb(163, 163, 163)" }}
+                      title="Clear search cache"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
                   </Box>
-                  <List dense disablePadding>
-                    {suggestions.map((suggestion, index) => (
-                      <ListItem key={index} disablePadding>
-                        <ListItemButton
-                          onClick={() => handleSuggestionClick(suggestion)}
-                          sx={{
-                            "&:hover": {
-                              bgcolor: "rgb(30, 30, 30)",
-                            },
-                          }}
-                        >
-                          <ListItemText
-                            primary={
-                              <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)" }}>
-                                {suggestion}
-                              </Typography>
-                            }
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
-                  </List>
                 </>
               )}
 
-              {/* Cache Status (Development) */}
+              {/* Enhanced Cache Status (Development) */}
+              {process.env.NODE_ENV === 'development' && (
+                <EnhancedCacheStatus showDetails={true} compact={false} />
+              )}
+
+              {/* Supabase Logs (Development) */}
               {process.env.NODE_ENV === 'development' && (
                 <Box sx={{ px: 2, py: 1, borderTop: "1px solid rgb(38, 38, 38)" }}>
-                  <CacheStatus showDetails={false} />
+                  <SupabaseLogs showDetails={false} />
                 </Box>
               )}
             </>
