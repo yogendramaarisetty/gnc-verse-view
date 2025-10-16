@@ -13,7 +13,8 @@
     "migrate:status": "tsx scripts/migrate-database.ts status",
     "migrate:test": "tsx scripts/test-migrations.ts",
     "deploy": "./scripts/deploy-with-migrations.sh",
-    "deploy:skip-migrations": "./scripts/deploy-with-migrations.sh --skip-migrations"
+    "deploy:skip-migrations": "./scripts/deploy-with-migrations.sh --skip-migrations",
+    "deploy:vercel": "./scripts/deploy-to-vercel.sh"
   },
   "dependencies": {
     "@emotion/cache": "latest",

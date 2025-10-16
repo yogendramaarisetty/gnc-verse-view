@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Build Only
 
 on:
   push:
@@ -46,25 +46,18 @@ jobs:
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key' }}
       run: npm run build
       
-    - name: Deploy to Vercel
-      if: github.ref == 'refs/heads/enhance' || github.ref == 'refs/heads/main'
-      continue-on-error: true
-      uses: amondnet/vercel-action@v25
-      with:
-        vercel-token: ${{ secrets.VERCEL_TOKEN }}
-        vercel-org-id: ${{ secrets.ORG_ID }}
-        vercel-project-id: ${{ secrets.PROJECT_ID }}
-        vercel-args: '--prod'
-      env:
-        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        
     - name: Build Success Summary
       run: |
         echo "🎉 Build completed successfully!"
         echo "📦 Build artifacts are ready for deployment"
-        echo "🔧 To deploy to Vercel:"
-        echo "   1. Set up VERCEL_TOKEN, ORG_ID, and PROJECT_ID secrets"
-        echo "   2. Configure environment variables in Vercel dashboard"
-        echo "   3. Push to trigger automatic deployment"
+        echo ""
+        echo "🚀 To deploy your application:"
+        echo "   1. Go to https://vercel.com"
+        echo "   2. Import your GitHub repository"
+        echo "   3. Configure environment variables:"
+        echo "      - NEXT_PUBLIC_SUPABASE_URL"
+        echo "      - NEXT_PUBLIC_SUPABASE_ANON_KEY"
+        echo "      - SUPABASE_SERVICE_ROLE_KEY"
+        echo "   4. Deploy automatically"
+        echo ""
+        echo "📚 See VERCEL_DEPLOYMENT_GUIDE.md for detailed instructions"
