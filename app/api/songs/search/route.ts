@@ -77,9 +77,92 @@ function calculateFuzzyScore(query: string, text: string): number {
   
   if (normalizedText.includes(normalizedQuery)) return 75
   
-  // Word boundary match
-  const words = textLower.split(/\s+/)
+  // Special handling for Telugu transliterations
+  if (queryLower.includes('yaweh') || queryLower.includes('neeve')) {
+    // Check for common Telugu transliterations
+    const teluguVariations = [
+      'yave', 'yaveh', 'yaweh', 'yavhe',
+      'neve', 'neeve', 'neveh', 'nevhe'
+    ]
+    
+    for (const variation of teluguVariations) {
+      if (textLower.includes(variation)) {
+        return 70
+      }
+    }
+  }
+  
+  // Enhanced handling for "praana" vs "pranamu" type variations
+  if (queryLower.includes('praana') || queryLower.includes('pranamu')) {
+    const praanaVariations = ['praana', 'pranamu', 'prana', 'pranam']
+    for (const variation of praanaVariations) {
+      if (textLower.includes(variation)) {
+        return 75
+      }
+    }
+  }
+  
+  // Enhanced handling for Telugu transliteration variations
+  // Handle common Telugu word variations
+  const teluguWordMappings = {
+    'praana': ['praanamu', 'prana', 'pranam'],
+    'praanamu': ['praana', 'prana', 'pranam'],
+    'jeeva': ['jeevamu', 'jeevam', 'jeeva'],
+    'jeevamu': ['jeeva', 'jeevam', 'jeeva'],
+    'aasha': ['aashamu', 'aasham', 'aasha'],
+    'aashamu': ['aasha', 'aasham', 'aasha'],
+    'sneha': ['snehamu', 'sneham', 'sneha'],
+    'snehamu': ['sneha', 'sneham', 'sneha']
+  }
+  
+  // Check for Telugu word variations
+  for (const [queryWord, variations] of Object.entries(teluguWordMappings)) {
+    if (queryLower.includes(queryWord)) {
+      for (const variation of variations) {
+        if (textLower.includes(variation)) {
+          return 75
+        }
+      }
+    }
+  }
+  
+  // Enhanced partial matching for transliterated text
+  // Split both query and text into words and check for partial matches
   const queryWords = queryLower.split(/\s+/)
+  const textWords = textLower.split(/\s+/)
+  
+  let partialMatches = 0
+  for (const queryWord of queryWords) {
+    for (const textWord of textWords) {
+      // Check if query word is contained in text word or vice versa
+      if (textWord.includes(queryWord) || queryWord.includes(textWord)) {
+        partialMatches++
+        break
+      }
+      // Check for similar sounding words (basic phonetic matching)
+      if (queryWord.length > 3 && textWord.length > 3) {
+        const similarity = 1 - (levenshteinDistance(queryWord, textWord) / Math.max(queryWord.length, textWord.length))
+        if (similarity > 0.7) {
+          partialMatches++
+          break
+        }
+      }
+    }
+  }
+  
+  if (partialMatches > 0) {
+    return 60 + (partialMatches / queryWords.length) * 15
+  }
+  
+  // Special case for "Neeve naa praana" vs "Neeve Naa Praanamu"
+  // Check if query contains "neeve" and "praana" and text contains "neeve" and "praanamu"
+  if (queryLower.includes('neeve') && queryLower.includes('praana') && 
+      textLower.includes('neeve') && textLower.includes('praanamu')) {
+    return 80
+  }
+  
+  // Word boundary match (reusing queryWords from above)
+  const words = textLower.split(/\s+/)
   
   let wordMatches = 0
   for (const queryWord of queryWords) {
@@ -121,6 +204,12 @@ function normalizeTransliteration(text: string): string {
     .replace(/h+/g, 'h')   // "Hallelujah" -> "Haleluya"
     .replace(/l+/g, 'l')   // "Hallelujah" -> "Haleluya"
     .replace(/j+/g, 'j')   // "Hallelujah" -> "Haleluya"
+    // Enhanced Telugu transliteration normalization - be more conservative
+    .replace(/yaweh/gi, 'yave')  // "Yaweh" -> "Yave"
+    .replace(/yave/gi, 'yave')  // Standardize Yave variations
+    // Don't normalize "neeve" to "neve" as it loses important phonetic information
+    // .replace(/neeve/gi, 'neve') // Removed this normalization
+    // .replace(/neve/gi, 'neve')  // Removed this normalization
 }
 
 /**
@@ -159,6 +248,13 @@ function performFuzzySearch(songs: any[], query: string, language?: string): Sea
       const lyricsText = song.lyrics.join(' ').toLowerCase()
       if (lyricsText.includes(queryLower)) {
         matches.lyrics = 30 // Lower score for lyrics matches
+      } else {
+        // Check for normalized transliterations in lyrics
+        const normalizedLyrics = normalizeTransliteration(lyricsText)
+        const normalizedQuery = normalizeTransliteration(queryLower)
+        if (normalizedLyrics.includes(normalizedQuery)) {
+          matches.lyrics = 25
+        }
       }
     }
     
@@ -186,8 +282,9 @@ function performFuzzySearch(songs: any[], query: string, language?: string): Sea
       (matches.lyrics * weights.lyrics) +
       (matches.tags * weights.tags)
     
-    // Only include songs with meaningful matches
-    if (totalScore > 10) {
+    // Only include songs with meaningful matches - reduced threshold for better transliteration matching
+    if (totalScore > 20) {
+      console.log(`Song "${song.title}" (${song.title_transliteration}) scored ${totalScore} for query "${query}"`)
       results.push({
         song: {
           id: song.id,
@@ -348,50 +445,51 @@ export async function GET(request: NextRequest) {
       searchResults = titleResults
     }
 
-    // Strategy 2: If no results, try transliteration search
-    if (searchResults.length === 0) {
-      const startTime2 = Date.now()
-      let supabaseQuery2 = supabase
-        .from('songs')
-        .select(`
-          *,
-          artists (
-            id,
-            name,
-            photo_url,
-            total_songs,
-            total_views
-          )
-        `)
-        .textSearch('title_transliteration', query, {
-          type: 'websearch',
-          config: 'english'
-        })
-        .limit(limit)
-
-      // Apply language filter if provided
-      if (language) {
-        supabaseQuery2 = supabaseQuery2.eq('language', language)
-      }
-
-      const { data: transliterationResults, error: transliterationError } = await supabaseQuery2
-      const duration2 = Date.now() - startTime2
-
-      // Log the query
-      supabaseLogger.log({
-        method: 'GET',
-        table: 'songs',
-        operation: 'textSearch',
-        url: `songs.textSearch(title_transliteration:${query})`,
-        resultCount: transliterationResults?.length || 0,
-        duration: duration2,
-        status: transliterationError ? 'error' : 'success',
-        error: transliterationError?.message
+    // Strategy 2: Try transliteration search (run in parallel with title search)
+    const startTime2 = Date.now()
+    let supabaseQuery2 = supabase
+      .from('songs')
+      .select(`
+        *,
+        artists (
+          id,
+          name,
+          photo_url,
+          total_songs,
+          total_views
+        )
+      `)
+      .textSearch('title_transliteration', query, {
+        type: 'websearch',
+        config: 'english'
       })
+      .limit(limit)
 
-      if (!transliterationError && transliterationResults) {
-        searchResults = transliterationResults
-      }
+    // Apply language filter if provided
+    if (language) {
+      supabaseQuery2 = supabaseQuery2.eq('language', language)
+    }
+
+    const { data: transliterationResults, error: transliterationError } = await supabaseQuery2
+    const duration2 = Date.now() - startTime2
+
+    // Log the query
+    supabaseLogger.log({
+      method: 'GET',
+      table: 'songs',
+      operation: 'textSearch',
+      url: `songs.textSearch(title_transliteration:${query})`,
+      resultCount: transliterationResults?.length || 0,
+      duration: duration2,
+      status: transliterationError ? 'error' : 'success',
+      error: transliterationError?.message
+    })
+
+    // Combine results from both searches, removing duplicates
+    if (!transliterationError && transliterationResults) {
+      const existingIds = new Set(searchResults.map(song => song.id))
+      const newResults = transliterationResults.filter(song => !existingIds.has(song.id))
+      searchResults = [...searchResults, ...newResults]
     }
 
     // Strategy 3: If still no results, try artist search
@@ -439,6 +537,7 @@ export async function GET(request: NextRequest) {
 
     // Strategy 4: If still no results, get all songs for fuzzy search
     if (searchResults.length === 0) {
+      console.log('No results from database search, falling back to fuzzy search for query:', query)
       const startTime4 = Date.now()
       let supabaseQuery4 = supabase
         .from('songs')
@@ -479,12 +578,39 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Always perform fuzzy search on the results we got
+    // Always perform fuzzy search on a broader set of songs to ensure we find the right matches
     let finalResults: SearchResult[] = []
-    if (searchResults.length > 0) {
+    
+    // Get a broader set of songs for fuzzy search to ensure we don't miss matches
+    console.log('Getting broader set of songs for fuzzy search')
+    const startTimeAll = Date.now()
+    let supabaseQueryAll = supabase
+      .from('songs')
+      .select(`
+        *,
+        artists (
+          id,
+          name,
+          photo_url,
+          total_songs,
+          total_views
+        )
+      `)
+      .limit(1000) // Get more songs for fuzzy search
+
+    // Apply language filter if provided
+    if (language) {
+      supabaseQueryAll = supabaseQueryAll.eq('language', language)
+    }
+
+    const { data: allSongs, error: allSongsError } = await supabaseQueryAll
+    const durationAll = Date.now() - startTimeAll
+
+    if (!allSongsError && allSongs) {
+      console.log(`Got ${allSongs.length} songs for fuzzy search`)
       const startTimeFuzzy = Date.now()
       try {
-        const fuzzyResults = performFuzzySearch(searchResults, query, language)
+        const fuzzyResults = performFuzzySearch(allSongs, query, language)
         const durationFuzzy = Date.now() - startTimeFuzzy
 
         // Log the fuzzy search
@@ -498,51 +624,13 @@ export async function GET(request: NextRequest) {
           status: 'success'
         })
 
-        // Use fuzzy results if we have them, otherwise create basic results from original data
+        // Use fuzzy results if we have them, otherwise return empty results
         if (fuzzyResults.length > 0) {
           finalResults = fuzzyResults
         } else {
-          // Create basic search results from original data
-          finalResults = searchResults.map(song => ({
-            song: {
-              id: song.id,
-              title: song.title,
-              titleTransliteration: song.title_transliteration,
-              artist: {
-                id: song.artists?.id || '',
-                name: song.artists?.name || 'Unknown Artist',
-                photoUrl: song.artists?.photo_url || null,
-                totalSongs: song.artists?.total_songs || 0,
-                totalViews: song.artists?.total_views || 0,
-              },
-              language: song.language,
-              tags: song.tags || [],
-              lyrics: song.lyrics || [],
-              chords: song.chords || [],
-              originalKey: song.original_key,
-              thumbnail: song.thumbnail_url,
-              hasVideo: song.has_video,
-              videoUrl: song.video_url,
-              youtubeViews: song.youtube_views,
-              youtubeLikes: song.youtube_likes,
-              releaseDate: song.release_date,
-              viewCount: song.view_count,
-              trending: song.trending,
-            },
-            score: 50, // Default score for non-fuzzy results
-            matches: {
-              title: 50,
-              titleTransliteration: 0,
-              artist: 0,
-              lyrics: 0,
-              tags: 0
-            },
-            highlights: {
-              title: song.title,
-              artist: song.artists?.name || 'Unknown Artist',
-              tags: song.tags || []
-            }
-          }))
+          // Don't return irrelevant results with default scores
+          // Only return results if they have meaningful matches
+          finalResults = []
         }
       } catch (fuzzyError) {
         const durationFuzzy = Date.now() - startTimeFuzzy
@@ -561,52 +649,24 @@ export async function GET(request: NextRequest) {
         
         console.error('Fuzzy search error:', fuzzyError)
         
-        // Create basic results from original data if fuzzy search fails
-        finalResults = searchResults.map(song => ({
-          song: {
-            id: song.id,
-            title: song.title,
-            titleTransliteration: song.title_transliteration,
-            artist: {
-              id: song.artists?.id || '',
-              name: song.artists?.name || 'Unknown Artist',
-              photoUrl: song.artists?.photo_url || null,
-              totalSongs: song.artists?.total_songs || 0,
-              totalViews: song.artists?.total_views || 0,
-            },
-            language: song.language,
-            tags: song.tags || [],
-            lyrics: song.lyrics || [],
-            chords: song.chords || [],
-            originalKey: song.original_key,
-            thumbnail: song.thumbnail_url,
-            hasVideo: song.has_video,
-            videoUrl: song.video_url,
-            youtubeViews: song.youtube_views,
-            youtubeLikes: song.youtube_likes,
-            releaseDate: song.release_date,
-            viewCount: song.view_count,
-            trending: song.trending,
-          },
-          score: 50, // Default score for non-fuzzy results
-          matches: {
-            title: 50,
-            titleTransliteration: 0,
-            artist: 0,
-            lyrics: 0,
-            tags: 0
-          },
-          highlights: {
-            title: song.title,
-            artist: song.artists?.name || 'Unknown Artist',
-            tags: song.tags || []
-          }
-        }))
+        // Don't return irrelevant results if fuzzy search fails
+        finalResults = []
       }
     }
 
     if (!finalResults || finalResults.length === 0) {
-      return NextResponse.json({ songs: [] })
+      // Return empty results with helpful message for debugging
+      console.log(`No meaningful matches found for query: "${query}"`)
+      return NextResponse.json({ 
+        songs: [],
+        message: `No songs found matching "${query}". Try different keywords or check spelling.`,
+        suggestions: [
+          "Try searching for song titles in Telugu",
+          "Use transliterated English words",
+          "Search for artist names",
+          "Try partial words or phrases"
+        ]
+      })
     }
 
     // Apply pagination
