@@ -225,6 +225,9 @@ export function InfiniteSongList({
                 onClick={() => onSelectSong(song)}
                 selected={selectedSongId === song.id}
                 sx={{
+                  py: 0.5,
+                  px: 1,
+                  minHeight: 48,
                   '&.Mui-selected': {
                     bgcolor: 'rgb(30, 30, 30)',
                     '&:hover': {
@@ -240,31 +243,31 @@ export function InfiniteSongList({
                   <Avatar
                     src={song.thumbnail}
                     sx={{
-                      width: 56,
-                      height: 56,
+                      width: 40,
+                      height: 32,
                       bgcolor: 'rgb(38, 38, 38)',
                     }}
                   >
-                    <PlayArrowIcon sx={{ color: 'rgb(163, 163, 163)' }} />
+                    <PlayArrowIcon sx={{ color: 'rgb(163, 163, 163)', fontSize: 16 }} />
                   </Avatar>
                 </ListItemAvatar>
                 <ListItemText
                   primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <Typography variant="body1" sx={{ color: 'rgb(250, 250, 250)', fontWeight: 500 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
+                      <Typography variant="body2" sx={{ color: 'rgb(250, 250, 250)', fontWeight: 500, fontSize: '0.875rem' }}>
                         {song.title}
                       </Typography>
                       {song.trending && (
-                        <TrendingUpIcon sx={{ fontSize: '1rem', color: 'rgb(59, 130, 246)' }} />
+                        <TrendingUpIcon sx={{ fontSize: '0.875rem', color: 'rgb(59, 130, 246)' }} />
                       )}
                     </Box>
                   }
                   secondary={
                     <Box>
-                      <Typography component="span" variant="body2" sx={{ color: 'rgb(163, 163, 163)', mb: 0.5, display: 'block' }}>
+                      <Typography component="span" variant="body2" sx={{ color: 'rgb(163, 163, 163)', mb: 0.25, display: 'block', fontSize: '0.75rem' }}>
                         {song.titleTransliteration}
                       </Typography>
-                      <Typography component="span" variant="caption" sx={{ color: 'rgb(163, 163, 163)', display: 'block' }}>
+                      <Typography component="span" variant="caption" sx={{ color: 'rgb(163, 163, 163)', display: 'block', fontSize: '0.7rem' }}>
                         {song.artist.name}
                       </Typography>
                     </Box>

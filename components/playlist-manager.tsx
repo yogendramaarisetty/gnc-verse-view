@@ -166,8 +166,9 @@ export function PlaylistManager({
                   <ListItemButton
                     onClick={() => onSelectPlaylist(playlist)}
                     sx={{
-                      py: 1.5,
-                      px: 2,
+                      py: 0.75,
+                      px: 1.5,
+                      minHeight: 48,
                       "&:hover": { bgcolor: "rgb(30, 30, 30)" },
                     }}
                   >

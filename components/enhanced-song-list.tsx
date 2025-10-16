@@ -300,10 +300,11 @@ export function EnhancedSongList({
                   selected={selectedSongId === song.id}
                   onClick={() => onSelectSong(song)}
                   sx={{
-                    py: 1,
-                    px: 1.5,
+                    py: 0.5,
+                    px: 1,
+                    minHeight: 48,
                     display: "flex",
-                    gap: 1.5,
+                    gap: 1,
                     "&.Mui-selected": {
                       bgcolor: "rgb(38, 38, 38)",
                       borderLeft: "3px solid rgb(59, 130, 246)",
@@ -318,8 +319,8 @@ export function EnhancedSongList({
                     image={song.thumbnail}
                     alt={song.title}
                     sx={{
-                      width: 56,
-                      height: 56,
+                      width: 40,
+                      height: 32,
                       borderRadius: 1,
                       objectFit: "cover",
                       flexShrink: 0,
