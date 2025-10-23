@@ -6,10 +6,20 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     
-    const limit = parseInt(searchParams.get('limit') || '10000')
+    const limit = parseInt(searchParams.get('limit') || '20')
+    const offset = parseInt(searchParams.get('offset') || '0')
     const language = searchParams.get('language')
 
-    // Get all songs with artists for in-memory search indexing
+    console.log('🎵 API Request:', { limit, offset, language })
+
+    // Get total count first
+    let countQuery = supabase.from('songs').select('*', { count: 'exact', head: true })
+    if (language && language !== 'all') {
+      countQuery = countQuery.eq('language', language)
+    }
+    const { count: totalCount } = await countQuery
+
+    // Get songs with artists for pagination
     let query = supabase
       .from('songs')
       .select(`
@@ -22,10 +32,13 @@ export async function GET(request: NextRequest) {
           total_views
         )
       `)
-      .limit(limit)
+      .range(offset, offset + limit - 1)
+      .order('trending', { ascending: false })
+      .order('view_count', { ascending: false })
+      .order('title', { ascending: true })
 
     // Apply language filter if provided
-    if (language) {
+    if (language && language !== 'all') {
       query = query.eq('language', language)
     }
 
@@ -35,6 +48,14 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching songs:', error)
       return NextResponse.json({ error: 'Failed to fetch songs' }, { status: 500 })
     }
+
+    console.log('📊 API Response:', { 
+      songsCount: songs?.length || 0, 
+      totalCount, 
+      offset, 
+      limit,
+      hasMore: (songs?.length || 0) === limit
+    })
 
     // Transform data to match Song interface
     const transformedSongs = (songs || []).map(song => ({
@@ -65,7 +86,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ 
       songs: transformedSongs,
-      total: transformedSongs.length
+      totalCount: totalCount || 0,
+      hasMore: (songs?.length || 0) === limit
     })
   } catch (error) {
     console.error('Error in songs API:', error)

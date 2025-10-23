@@ -69,6 +69,27 @@ export function InfiniteSongList({
   const [filterBy, setFilterBy] = useState<string>('all')
   const observerTarget = useRef<HTMLDivElement>(null)
 
+  // Debug logging
+  console.log('🎵 InfiniteSongList props:', {
+    songsCount: songs.length,
+    loading,
+    loadingMore,
+    error,
+    hasMore,
+    viewMode,
+    selectedLanguage,
+    firstSong: songs[0]?.title || 'No songs'
+  })
+
+  // Force re-render test
+  useEffect(() => {
+    console.log('🔄 InfiniteSongList mounted/updated:', {
+      songsCount: songs.length,
+      loading,
+      viewMode
+    })
+  }, [songs.length, loading, viewMode])
+
   // Intersection Observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -134,10 +155,19 @@ export function InfiniteSongList({
 
   // Filter and sort songs
   const filteredSongs = useMemo(() => {
+    console.log('🔍 Filtering songs:', { 
+      originalCount: songs.length, 
+      viewMode, 
+      searchQuery,
+      sortBy 
+    })
+    
     // First deduplicate songs by ID to prevent duplicates
     const uniqueSongs = songs.filter((song, index, self) => 
       index === self.findIndex(s => s.id === song.id)
     )
+    
+    console.log('🔄 After deduplication:', { uniqueCount: uniqueSongs.length })
     
     let filtered = uniqueSongs
 
@@ -200,8 +230,21 @@ export function InfiniteSongList({
         case 'trending':
           return Number(b.trending) - Number(a.trending)
         default:
+          // Default sorting: trending first, then by view count (descending), then by title (ascending)
+          if (a.trending && !b.trending) return -1
+          if (!a.trending && b.trending) return 1
+          if (a.trending === b.trending) {
+            const viewDiff = (b.viewCount || 0) - (a.viewCount || 0)
+            if (viewDiff !== 0) return viewDiff
+            return a.title.localeCompare(b.title)
+          }
           return 0
       }
+    })
+
+    console.log('✅ Final filtered songs:', { 
+      filteredCount: filtered.length,
+      firstSong: filtered[0]?.title || 'No songs'
     })
 
     return filtered
@@ -254,6 +297,13 @@ export function InfiniteSongList({
     )
   }
 
+  console.log('🎨 Rendering InfiniteSongList:', { 
+    songsCount: songs.length, 
+    filteredCount: filteredSongs.length,
+    loading,
+    viewMode 
+  })
+
   return (
     <Box sx={{ 
       height: '100%', 
@@ -289,6 +339,9 @@ export function InfiniteSongList({
                viewMode === 'recent' ? 'No recently viewed songs' :
                viewMode === 'trending' ? 'No trending songs available' :
                'No songs found for the current filter'}
+            </Typography>
+            <Typography variant="caption" sx={{ color: 'rgb(100, 100, 100)', mt: 1 }}>
+              Debug: {songs.length} songs received, loading: {loading.toString()}
             </Typography>
           </Box>
         ) : (

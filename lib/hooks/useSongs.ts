@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchSongs, fetchSongById, searchSongs, fetchTrendingSongs, updateViewCount } from '@/lib/api/songs'
 import type { Song } from '@/lib/types'
 import { songCache } from '@/lib/services/song-cache'
@@ -525,6 +525,7 @@ export function useInfiniteSongs(language?: string) {
   const [currentPage, setCurrentPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
   const [hasInitialized, setHasInitialized] = useState(false)
+  const currentPageRef = useRef(0)
 
   const ITEMS_PER_PAGE = 20
 
@@ -532,39 +533,63 @@ export function useInfiniteSongs(language?: string) {
     if (reset) {
       setSongs([])
       setCurrentPage(0)
+      currentPageRef.current = 0
       setHasMore(true)
       setHasInitialized(true)
     }
 
-    const page = reset ? 0 : currentPage
+    const page = reset ? 0 : currentPageRef.current
     setLoading(reset)
     setLoadingMore(!reset)
     setError(null)
 
     try {
-      const response = await fetch(`/api/songs?language=${language || 'all'}&limit=${ITEMS_PER_PAGE}&offset=${page * ITEMS_PER_PAGE}`)
+      console.log('🔄 Loading songs:', { language, page, offset: page * ITEMS_PER_PAGE })
+      const url = `/api/songs?language=${language || 'all'}&limit=${ITEMS_PER_PAGE}&offset=${page * ITEMS_PER_PAGE}`
+      console.log('🌐 Fetching URL:', url)
+      
+      const response = await fetch(url)
+      console.log('📡 Response status:', response.status, response.statusText)
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch songs')
+        const errorText = await response.text()
+        console.error('❌ API Error:', errorText)
+        throw new Error(`Failed to fetch songs: ${response.status} ${response.statusText}`)
       }
 
       const data = await response.json()
       const newSongs = data.songs || []
+      console.log('📥 Received songs:', { 
+        count: newSongs.length, 
+        totalCount: data.totalCount,
+        hasMore: data.hasMore,
+        reset,
+        firstSong: newSongs[0]?.title || 'No songs'
+      })
 
       if (reset) {
+        console.log('🔄 Resetting songs:', { count: newSongs.length, titles: newSongs.map(s => s.title) })
         setSongs(newSongs)
         setTotalCount(data.totalCount || 0)
-        setCurrentPage(1) // Set to 1 after loading first page
+        setCurrentPage(1)
+        currentPageRef.current = 1
       } else {
         // Deduplicate songs by ID to prevent duplicates
         setSongs(prev => {
           const existingIds = new Set(prev.map(song => song.id))
           const uniqueNewSongs = newSongs.filter(song => !existingIds.has(song.id))
+          console.log('➕ Adding more songs:', { 
+            prevCount: prev.length, 
+            newCount: uniqueNewSongs.length,
+            total: prev.length + uniqueNewSongs.length
+          })
           return [...prev, ...uniqueNewSongs]
         })
-        setCurrentPage(prev => prev + 1) // Increment page
+        setCurrentPage(prev => prev + 1)
+        currentPageRef.current += 1
       }
 
-      setHasMore(newSongs.length === ITEMS_PER_PAGE)
+      setHasMore(data.hasMore || newSongs.length === ITEMS_PER_PAGE)
 
       // Add to cache
       songCache.addSongs(newSongs)
@@ -575,11 +600,11 @@ export function useInfiniteSongs(language?: string) {
       setLoading(false)
       setLoadingMore(false)
     }
-  }, [currentPage])
+  }, []) // Remove currentPage dependency to prevent infinite re-renders
 
   const loadMore = useCallback(() => {
     if (!loadingMore && hasMore) {
-      loadSongs(language || 'all')
+      loadSongs(language || 'all', false)
     }
   }, [loadingMore, hasMore, loadSongs, language])
 
@@ -591,9 +616,10 @@ export function useInfiniteSongs(language?: string) {
   // Initialize with default load (only once)
   useEffect(() => {
     if (!hasInitialized && !loading) {
+      console.log('🚀 Initializing useInfiniteSongs:', { language, hasInitialized, loading })
       loadSongs(language || 'all', true)
     }
-  }, [hasInitialized, loading, loadSongs, language])
+  }, [hasInitialized, loading, language])
 
   return {
     songs,

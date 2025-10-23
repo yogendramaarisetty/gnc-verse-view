@@ -81,6 +81,16 @@ export default function Home() {
   const allSongsLoadingMoreState = allSongsLoadingMore
   const allSongsErrorState = allSongsError
 
+  // Debug logging
+  console.log('🎵 Main page songs state:', {
+    allSongsCount: allSongs.length,
+    allSongsLoading: allSongsLoadingState,
+    allSongsError: allSongsErrorState,
+    hasMore,
+    selectedLanguage,
+    allSongsTitles: allSongs.slice(0, 3).map(s => s.title)
+  })
+
   // Wrapper functions to handle async operations with optimistic updates
   const handleToggleFavorite = async (songId: string) => {
     const isCurrentlyFavorite = favorites.some(fav => fav.id === songId)
@@ -465,6 +475,7 @@ export default function Home() {
 
   // Show loading state
   if (authLoading || songsLoading || countsLoading) {
+    console.log('🔄 Showing loading state:', { authLoading, songsLoading, countsLoading })
     return (
       <Box sx={{ 
         display: "flex", 
