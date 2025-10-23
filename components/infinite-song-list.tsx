@@ -18,11 +18,12 @@ import {
   Tooltip,
 } from '@mui/material'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
-import StarIcon from '@mui/icons-material/Star'
-import StarBorderIcon from '@mui/icons-material/StarBorder'
+import FavoriteIcon from '@mui/icons-material/Favorite'
+import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder'
 import ThumbUpIcon from '@mui/icons-material/ThumbUp'
 import VisibilityIcon from '@mui/icons-material/Visibility'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
+import HistoryIcon from '@mui/icons-material/History'
 import type { Song } from '@/lib/types'
 import type { HistorySong } from '@/lib/api/history'
 import { storage } from '@/lib/storage'
@@ -42,6 +43,8 @@ interface InfiniteSongListProps {
   error?: string | null
   onToggleFavorite?: (songId: string) => void
   isFavorite?: (songId: string) => boolean
+  scrollToSongId?: string | null
+  onScrollComplete?: () => void
 }
 
 export function InfiniteSongList({
@@ -58,6 +61,8 @@ export function InfiniteSongList({
   error = null,
   onToggleFavorite,
   isFavorite,
+  scrollToSongId,
+  onScrollComplete,
 }: InfiniteSongListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'title' | 'artist' | 'views' | 'trending'>('title')
@@ -85,6 +90,47 @@ export function InfiniteSongList({
       }
     }
   }, [hasMore, loadingMore, onLoadMore])
+
+  // Scroll to specific song when scrollToSongId changes
+  useEffect(() => {
+    if (scrollToSongId && songs.length > 0) {
+      console.log('🎯 Attempting to scroll to song:', scrollToSongId)
+      const songIndex = songs.findIndex(song => song.id === scrollToSongId)
+      console.log('📍 Song index in list:', songIndex)
+      
+      if (songIndex !== -1) {
+        // Use a more robust approach with multiple retries
+        const attemptScroll = (attempt = 1, maxAttempts = 5) => {
+          const songElement = document.getElementById(`song-${scrollToSongId}`)
+          console.log(`🔍 Attempt ${attempt}: Found song element:`, !!songElement)
+          
+          if (songElement) {
+            console.log('📜 Scrolling to song element')
+            songElement.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center' 
+            })
+            // Call onScrollComplete after scrolling
+            if (onScrollComplete) {
+              setTimeout(() => {
+                console.log('✅ Scroll complete')
+                onScrollComplete()
+              }, 500)
+            }
+          } else if (attempt < maxAttempts) {
+            console.log(`❌ Song element not found, retrying in ${attempt * 100}ms (attempt ${attempt + 1}/${maxAttempts})`)
+            setTimeout(() => attemptScroll(attempt + 1, maxAttempts), attempt * 100)
+          } else {
+            console.log('❌ All retry attempts failed, element not found')
+          }
+        }
+        
+        attemptScroll()
+      } else {
+        console.log('❌ Song not found in songs list')
+      }
+    }
+  }, [scrollToSongId, songs, onScrollComplete])
 
   // Filter and sort songs
   const filteredSongs = useMemo(() => {
@@ -123,8 +169,27 @@ export function InfiniteSongList({
       })
     }
 
-    // Sort songs
+    // Create a map of recent song IDs with their visit order (lower index = more recent)
+    const recentSongOrder = new Map<string, number>()
+    history.forEach((historyItem, index) => {
+      recentSongOrder.set(historyItem.id, index)
+    })
+
+    // Sort songs with recent songs first, then by the specified sort criteria
     filtered.sort((a, b) => {
+      const aIsRecent = recentSongOrder.has(a.id)
+      const bIsRecent = recentSongOrder.has(b.id)
+      
+      // If both are recent, sort by visit order (most recent first)
+      if (aIsRecent && bIsRecent) {
+        return (recentSongOrder.get(a.id) || 0) - (recentSongOrder.get(b.id) || 0)
+      }
+      
+      // If only one is recent, prioritize the recent one
+      if (aIsRecent && !bIsRecent) return -1
+      if (!aIsRecent && bIsRecent) return 1
+      
+      // If neither is recent, sort by the specified criteria
       switch (sortBy) {
         case 'title':
           return a.title.localeCompare(b.title)
@@ -228,29 +293,40 @@ export function InfiniteSongList({
           </Box>
         ) : (
           <List dense disablePadding>
-            {filteredSongs.map((song) => (
-            <ListItem 
-              key={song.id} 
-              disablePadding
+            {filteredSongs.map((song) => {
+              // Check if this song is recently visited
+              const isRecentlyVisited = history.some((h) => h.id === song.id)
+              
+              return (
+                <ListItem 
+                  key={song.id} 
+                  id={`song-${song.id}`}
+                  disablePadding
               secondaryAction={
-                onToggleFavorite && isFavorite ? (
-                  <IconButton
-                    edge="end"
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggleFavorite(song.id)
-                    }}
-                    sx={{ 
-                      color: isFavorite(song.id) ? "rgb(234, 179, 8)" : "rgb(163, 163, 163)",
-                      mr: 0.5
-                    }}
-                  >
-                    {isFavorite(song.id) ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
-                  </IconButton>
-                ) : null
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  {isRecentlyVisited && (
+                    <Tooltip title="Recently visited">
+                      <HistoryIcon sx={{ fontSize: '0.875rem', color: 'rgb(59, 130, 246)' }} />
+                    </Tooltip>
+                  )}
+                  {onToggleFavorite && isFavorite ? (
+                    <IconButton
+                      edge="end"
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onToggleFavorite(song.id)
+                      }}
+                      sx={{
+                        color: isFavorite(song.id) ? "#e91e63" : "rgb(163, 163, 163)"
+                      }}
+                    >
+                      {isFavorite(song.id) ? <FavoriteIcon fontSize="small" /> : <FavoriteBorderIcon fontSize="small" />}
+                    </IconButton>
+                  ) : null}
+                </Box>
               }
-            >
+                >
               <ListItemButton
                 onClick={() => onSelectSong(song)}
                 selected={selectedSongId === song.id}
@@ -258,7 +334,7 @@ export function InfiniteSongList({
                   py: 0.5,
                   px: 1,
                   minHeight: 48,
-                  pr: onToggleFavorite ? 5 : 1, // Add padding for favorite button
+                  pr: (onToggleFavorite || isRecentlyVisited) ? 5 : 1, // Add padding for favorite button and recent indicator
                   '&.Mui-selected': {
                     bgcolor: 'rgb(30, 30, 30)',
                     '&:hover': {
@@ -300,7 +376,8 @@ export function InfiniteSongList({
                 />
               </ListItemButton>
             </ListItem>
-          ))}
+              )
+            })}
         </List>
         )}
 

@@ -16,7 +16,7 @@ import {
 } from "@mui/material"
 import LanguageIcon from "@mui/icons-material/Language"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
-import StarIcon from "@mui/icons-material/Star"
+import FavoriteIcon from "@mui/icons-material/Favorite"
 import HistoryIcon from "@mui/icons-material/History"
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
 import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay"
@@ -158,7 +158,7 @@ export function LanguageSidebar({
               }}
             >
               <ListItemIcon sx={{ minWidth: 36 }}>
-                <StarIcon sx={{ fontSize: "1.2rem", color: "rgb(234, 179, 8)" }} />
+                <FavoriteIcon sx={{ fontSize: "1.2rem", color: "#e91e63" }} />
               </ListItemIcon>
               <ListItemText
                 primary={

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Box, AppBar, Toolbar, Typography, IconButton, Drawer, useMediaQuery, useTheme, CircularProgress, Stack } from "@mui/material"
 import MenuIcon from "@mui/icons-material/Menu"
 import MenuBookIcon from "@mui/icons-material/MenuBook"
@@ -22,6 +22,7 @@ import { useFavorites } from "@/lib/hooks/useFavorites"
 import { usePlaylists } from "@/lib/hooks/usePlaylists"
 import { useHistory } from "@/lib/hooks/useHistory"
 import type { Song, Playlist } from "@/lib/types"
+import { toast } from "sonner"
 
 const SIDEBAR_WIDTH = 400
 
@@ -34,6 +35,8 @@ export default function Home() {
   const [presentationMode, setPresentationMode] = useState(false)
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null)
   const [sidebarView, setSidebarView] = useState<'navigation' | 'songList'>('songList')
+  const [sidebarSongs, setSidebarSongs] = useState<Song[]>([])
+  const [scrollToSongId, setScrollToSongId] = useState<string | null>(null)
 
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("lg"))
@@ -78,23 +81,54 @@ export default function Home() {
   const allSongsLoadingMoreState = allSongsLoadingMore
   const allSongsErrorState = allSongsError
 
-  // Wrapper functions to handle async operations
+  // Wrapper functions to handle async operations with optimistic updates
   const handleToggleFavorite = async (songId: string) => {
+    const isCurrentlyFavorite = favorites.some(fav => fav.id === songId)
+    const isOptimisticallyFavorite = optimisticFavorites.has(songId)
+    
+    // Determine the current effective state (real + optimistic)
+    const currentEffectiveState = isCurrentlyFavorite || isOptimisticallyFavorite
+    const willBeFavorite = !currentEffectiveState
+
+    // Optimistic update - immediately update UI
+    setOptimisticFavorites(prev => {
+      const newSet = new Set(prev)
+      if (willBeFavorite) {
+        newSet.add(songId)
+      } else {
+        newSet.delete(songId)
+      }
+      return newSet
+    })
+
     try {
       await toggleFavoriteStatus(songId)
+      // Clear optimistic state on success
+      setOptimisticFavorites(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(songId)
+        return newSet
+      })
     } catch (error) {
       console.error('Failed to toggle favorite:', error)
+      // Revert optimistic update on error
+      setOptimisticFavorites(prev => {
+        const newSet = new Set(prev)
+        if (willBeFavorite) {
+          newSet.delete(songId)
+        } else {
+          newSet.add(songId)
+        }
+        return newSet
+      })
+      toast.error('Failed to update favorite. Please try again.')
     }
   }
 
   const handleToggleFavoriteNoArgs = async () => {
     // This will be called from SongViewer component
     if (selectedSong) {
-      try {
-        await toggleFavoriteStatus(selectedSong.id)
-      } catch (error) {
-        console.error('Failed to toggle favorite:', error)
-      }
+      await handleToggleFavorite(selectedSong.id)
     }
   }
 
@@ -147,6 +181,140 @@ export default function Home() {
   const songs = onlineSongs
   const songsLoadingState = songsLoading
   const songsErrorState = songsError
+  
+  // State for recently visited songs from history
+  const [recentSongs, setRecentSongs] = useState<Song[]>([])
+  
+  // State for optimistic favorite updates
+  const [optimisticFavorites, setOptimisticFavorites] = useState<Set<string>>(new Set())
+
+  // Extract recently visited songs from history that are not in the current song list
+  useEffect(() => {
+    console.log('🔍 History processing effect triggered:', {
+      historyLength: history?.length || 0,
+      songsLength: songs?.length || 0,
+      sidebarSongsLength: sidebarSongs?.length || 0
+    })
+
+    if (!history || history.length === 0) {
+      console.log('📭 No history data, clearing recent songs')
+      setRecentSongs([])
+      return
+    }
+
+    try {
+      // Get all current song IDs
+      const currentSongIds = new Set([
+        ...songs.map(s => s.id),
+        ...sidebarSongs.map(s => s.id)
+      ])
+
+      console.log('📋 Current song IDs:', Array.from(currentSongIds))
+      console.log('📚 History items:', history.map(h => ({ id: h.id, title: h.title, artist: h.artist?.name })))
+
+      // Filter out existing songs and add defensive checks
+      const missingHistoryItems = history.filter(h => {
+        const isMissing = !currentSongIds.has(h.id)
+        console.log(`🔍 Checking history item ${h.id} (${h.title}):`, {
+          isMissing,
+          hasId: !!h.id,
+          hasTitle: !!h.title,
+          hasArtist: !!h.artist,
+          hasArtistName: !!h.artist?.name
+        })
+        return isMissing
+      })
+
+      console.log('🎯 Missing history items:', missingHistoryItems.length)
+
+      // Transform history items to Song objects with defensive checks
+      const recentSongsFromHistory: Song[] = []
+      
+      for (const historyItem of missingHistoryItems.slice(0, 10)) {
+        console.log('🔄 Transforming history item to song:', {
+          id: historyItem.id,
+          title: historyItem.title,
+          artistName: historyItem.artist?.name,
+          language: historyItem.language
+        })
+
+        // Defensive checks for required fields
+        if (!historyItem.id || !historyItem.title || !historyItem.artist?.id || !historyItem.artist?.name) {
+          console.warn('⚠️ Skipping history item due to missing required fields:', historyItem)
+          continue
+        }
+
+        // Transform the history song data to match Song interface
+        const song: Song = {
+          id: historyItem.id,
+          title: historyItem.title,
+          titleTransliteration: historyItem.titleTransliteration || '',
+          artist: {
+            id: historyItem.artist.id,
+            name: historyItem.artist.name,
+            photoUrl: historyItem.artist.photoUrl || '',
+            totalSongs: 0,
+            totalViews: 0,
+          },
+          language: historyItem.language as "Telugu" | "Malayalam" | "English" | "Hindi" | "Tamil" | "Bengali" | "Kannada",
+          tags: [],
+          lyrics: [],
+          englishLyrics: [],
+          chords: [],
+          originalKey: '',
+          thumbnail: historyItem.thumbnail || '',
+          hasVideo: false,
+          videoUrl: '',
+          youtubeViews: 0,
+          youtubeLikes: 0,
+          releaseDate: '',
+          viewCount: 0,
+          trending: false,
+        }
+        
+        recentSongsFromHistory.push(song)
+      }
+
+      console.log('✅ Recent songs from history processed:', {
+        totalHistory: history.length,
+        missingSongs: recentSongsFromHistory.length,
+        recentSongTitles: recentSongsFromHistory.map(s => s.title),
+        recentSongIds: recentSongsFromHistory.map(s => s.id)
+      })
+
+      setRecentSongs(recentSongsFromHistory)
+    } catch (error) {
+      console.error('❌ Error processing recent songs from history:', error)
+      setRecentSongs([])
+    }
+  }, [history, songs, sidebarSongs])
+
+  // Combine original songs with searched songs and recent songs for sidebar
+  const combinedSongs = useMemo(() => {
+    console.log('🔄 Combining songs:', {
+      sidebarSongs: sidebarSongs.length,
+      originalSongs: songs.length,
+      recentSongs: recentSongs.length,
+      sidebarSongTitles: sidebarSongs.map(s => s.title),
+      recentSongTitles: recentSongs.map(s => s.title)
+    })
+
+    const allSongs = [...sidebarSongs, ...songs, ...recentSongs]
+    console.log('📊 All songs before deduplication:', allSongs.length)
+    
+    // Remove duplicates based on song ID
+    const uniqueSongs = allSongs.filter((song, index, self) => 
+      index === self.findIndex(s => s.id === song.id)
+    )
+    
+    console.log('✅ Final combined songs:', {
+      total: uniqueSongs.length,
+      songTitles: uniqueSongs.map(s => s.title),
+      songIds: uniqueSongs.map(s => s.id)
+    })
+    
+    return uniqueSongs
+  }, [sidebarSongs, songs, recentSongs])
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
@@ -164,6 +332,56 @@ export default function Home() {
       }
     } else {
       console.error('Invalid song object passed to handleSelectSong:', song)
+    }
+    if (isMobile) {
+      setMobileOpen(false)
+    }
+    
+    // Load full song data if not already loaded
+    if (!isSongFullyLoaded(song.id)) {
+      const fullSong = await loadFullSong(song.id)
+      if (fullSong) {
+        setSelectedSong(fullSong)
+      }
+    }
+  }
+
+  const handleSelectSongFromSearch = async (song: Song) => {
+    console.log('🎵 Song selected from search:', song.title, song.id)
+    setSelectedSong(song)
+    
+    // Add song to the top of sidebar if not already present
+    const isAlreadyInSidebar = songs.some(s => s.id === song.id)
+    console.log('🔍 Is song already in sidebar?', isAlreadyInSidebar)
+    
+    if (!isAlreadyInSidebar) {
+      console.log('➕ Adding song to sidebar:', song.title)
+      setSidebarSongs(prevSongs => {
+        // Remove if already exists to avoid duplicates
+        const filteredSongs = prevSongs.filter(s => s.id !== song.id)
+        // Add to the top
+        const newSongs = [song, ...filteredSongs]
+        console.log('📝 New sidebar songs:', newSongs.map(s => s.title))
+        return newSongs
+      })
+      
+      // Trigger scroll to this song after a short delay to ensure DOM update
+      console.log('🎯 Setting scroll target:', song.id)
+      setTimeout(() => {
+        setScrollToSongId(song.id)
+      }, 100)
+    }
+    
+    // Track view in history for both authenticated and anonymous users
+    if (song?.id && typeof song.id === 'string') {
+      try {
+        addToHistory(song.id)
+      } catch (error) {
+        console.error('Failed to add song to history:', error)
+        // Don't prevent song selection from working
+      }
+    } else {
+      console.error('Invalid song object passed to handleSelectSongFromSearch:', song)
     }
     if (isMobile) {
       setMobileOpen(false)
@@ -203,7 +421,6 @@ export default function Home() {
       'all': 'all-songs',
       'trending': 'trending',
       'favorites': 'favorites',
-      'recent': 'recent',
       'all-time-hits': 'all-time-hits',
       'playlists': 'playlists',
     }
@@ -234,6 +451,7 @@ export default function Home() {
     }
     return []
   }
+
 
   // Prepare language data for dropdown
   const languageOptions = [
@@ -332,8 +550,8 @@ export default function Home() {
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <SearchBar 
-                    onSelectSong={handleSelectSong} 
-                    songs={songs}
+                    onSelectSong={handleSelectSongFromSearch} 
+                    songs={combinedSongs}
                     language={selectedLanguage}
                   />
                   <LanguageDropdown 
@@ -377,8 +595,8 @@ export default function Home() {
               }}>
                 <Stack direction="row" spacing={2} alignItems="center" sx={{ width: "100%", maxWidth: "none" }}>
                   <SearchBar 
-                    onSelectSong={handleSelectSong} 
-                    songs={songs}
+                    onSelectSong={handleSelectSongFromSearch} 
+                    songs={combinedSongs}
                     language={selectedLanguage}
                   />
                   <LanguageDropdown 
@@ -441,7 +659,7 @@ export default function Home() {
               onLanguageChange={handleLanguageChange}
               filterMode={filterMode}
               onFilterModeChange={handleFilterModeChange}
-              songs={songs}
+              songs={combinedSongs}
               allSongs={allSongs}
               allSongsLoading={allSongsLoadingState}
               allSongsLoadingMore={allSongsLoadingMoreState}
@@ -457,7 +675,13 @@ export default function Home() {
               onShowAllSongs={handleShowAllSongs}
               selectedSongId={selectedSong?.id}
               onToggleFavorite={handleToggleFavorite}
-              isFavorite={(songId: string) => favorites.some(fav => fav.id === songId)}
+              isFavorite={(songId: string) => {
+                const isRealFavorite = favorites.some(fav => fav.id === songId)
+                const isOptimisticFavorite = optimisticFavorites.has(songId)
+                return isRealFavorite || isOptimisticFavorite
+              }}
+              scrollToSongId={scrollToSongId}
+              onScrollComplete={() => setScrollToSongId(null)}
             />
           </Drawer>
         ) : (
@@ -480,7 +704,7 @@ export default function Home() {
               onLanguageChange={handleLanguageChange}
               filterMode={filterMode}
               onFilterModeChange={handleFilterModeChange}
-              songs={songs}
+              songs={combinedSongs}
               allSongs={allSongs}
               allSongsLoading={allSongsLoadingState}
               allSongsLoadingMore={allSongsLoadingMoreState}
@@ -496,7 +720,13 @@ export default function Home() {
               onShowAllSongs={handleShowAllSongs}
               selectedSongId={selectedSong?.id}
               onToggleFavorite={handleToggleFavorite}
-              isFavorite={(songId: string) => favorites.some(fav => fav.id === songId)}
+              isFavorite={(songId: string) => {
+                const isRealFavorite = favorites.some(fav => fav.id === songId)
+                const isOptimisticFavorite = optimisticFavorites.has(songId)
+                return isRealFavorite || isOptimisticFavorite
+              }}
+              scrollToSongId={scrollToSongId}
+              onScrollComplete={() => setScrollToSongId(null)}
             />
           </Drawer>
         )}
@@ -524,7 +754,7 @@ export default function Home() {
             onPlaylistAdd={handleAddToPlaylistSingleArg}
             onPlaylistRemove={handleRemoveFromPlaylistSingleArg}
             playlists={playlists}
-            isFavorite={selectedSong ? favorites.some(fav => fav.id === selectedSong.id) : false}
+            isFavorite={selectedSong ? (favorites.some(fav => fav.id === selectedSong.id) || optimisticFavorites.has(selectedSong.id)) : false}
           />
         ) : (
           <Box

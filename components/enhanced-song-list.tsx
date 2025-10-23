@@ -23,8 +23,8 @@ import {
   CardMedia,
 } from "@mui/material"
 import SearchIcon from "@mui/icons-material/Search"
-import StarIcon from "@mui/icons-material/Star"
-import StarBorderIcon from "@mui/icons-material/StarBorder"
+import FavoriteIcon from "@mui/icons-material/Favorite"
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder"
 import PlayArrowIcon from "@mui/icons-material/PlayArrow"
 import ThumbUpIcon from "@mui/icons-material/ThumbUp"
 import VisibilityIcon from "@mui/icons-material/Visibility"
@@ -290,9 +290,9 @@ export function EnhancedSongList({
                     edge="end"
                     size="small"
                     onClick={(e) => handleToggleFavorite(song.id, e)}
-                    sx={{ color: favorites.includes(song.id) ? "rgb(234, 179, 8)" : "rgb(163, 163, 163)" }}
+                    sx={{ color: favorites.includes(song.id) ? "#e91e63" : "rgb(163, 163, 163)" }}
                   >
-                    {favorites.includes(song.id) ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+                    {favorites.includes(song.id) ? <FavoriteIcon fontSize="small" /> : <FavoriteBorderIcon fontSize="small" />}
                   </IconButton>
                 }
               >

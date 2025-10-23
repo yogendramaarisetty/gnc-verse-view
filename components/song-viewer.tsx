@@ -20,9 +20,16 @@ import {
   ListItemText,
   Tabs,
   Tab,
+  Select,
+  FormControl,
+  InputLabel,
+  Drawer,
+  useMediaQuery,
+  useTheme,
+  Paper,
 } from "@mui/material"
-import StarIcon from "@mui/icons-material/Star"
-import StarBorderIcon from "@mui/icons-material/StarBorder"
+import FavoriteIcon from "@mui/icons-material/Favorite"
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder"
 import PresentToAllIcon from "@mui/icons-material/PresentToAll"
 import YouTubeIcon from "@mui/icons-material/YouTube"
 import AddIcon from "@mui/icons-material/Add"
@@ -34,6 +41,13 @@ import VisibilityIcon from "@mui/icons-material/Visibility"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import ExpandLessIcon from "@mui/icons-material/ExpandLess"
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
+import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft"
+import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter"
+import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight"
+import FormatBoldIcon from "@mui/icons-material/FormatBold"
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown"
+import SettingsIcon from "@mui/icons-material/Settings"
+import CloseIcon from "@mui/icons-material/Close"
 import type { Song } from "@/lib/types"
 import { storage } from "@/lib/storage"
 import { transposeChords } from "@/lib/chord-utils"
@@ -61,13 +75,19 @@ export function SongViewer({
 }: SongViewerProps) {
   const { user } = useAuth()
   const router = useRouter()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [isFavorite, setIsFavorite] = useState(false)
   const [fontSize, setFontSize] = useState(16)
   const [transpose, setTranspose] = useState(0)
   const [showChords, setShowChords] = useState(true)
   const [playlistMenuAnchor, setPlaylistMenuAnchor] = useState<null | HTMLElement>(null)
-  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(isMobile)
   const [lyricsTab, setLyricsTab] = useState(0) // 0: Telugu, 1: English
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left')
+  const [teluguFont, setTeluguFont] = useState('Potta One')
+  const [isBold, setIsBold] = useState(false)
+  const [mobileOverlayOpen, setMobileOverlayOpen] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -78,9 +98,19 @@ export function SongViewer({
       setIsFavorite(storage.isFavorite(song.id))
     }
     
+    // Load saved preferences
     setFontSize(storage.getFontSize())
+    setTextAlign(storage.getTextAlign())
+    setLyricsTab(storage.getLanguageTab())
+    setTeluguFont(storage.getTeluguFont())
+    setIsBold(storage.getIsBold())
     setTranspose(0)
   }, [song.id, user, propIsFavorite])
+
+  // Handle mobile/desktop transitions
+  useEffect(() => {
+    setIsHeaderCollapsed(isMobile)
+  }, [isMobile])
 
 
   const handleToggleFavorite = async () => {
@@ -110,6 +140,50 @@ export function SongViewer({
     const newSize = Math.max(12, Math.min(24, fontSize + delta))
     setFontSize(newSize)
     storage.setFontSize(newSize)
+  }
+
+  const handleTextAlignChange = (align: 'left' | 'center' | 'right') => {
+    setTextAlign(align)
+    storage.setTextAlign(align)
+  }
+
+  const handleLanguageChange = (tab: number) => {
+    setLyricsTab(tab)
+    storage.setLanguageTab(tab)
+  }
+
+  const handleTeluguFontChange = (font: string) => {
+    console.log('Changing Telugu font to:', font)
+    setTeluguFont(font)
+    storage.setTeluguFont(font)
+  }
+
+  const handleBoldToggle = () => {
+    const newBold = !isBold
+    setIsBold(newBold)
+    storage.setIsBold(newBold)
+  }
+
+  const getTeluguFontFamily = () => {
+    if (lyricsTab !== 0) return undefined
+    
+    let fontFamily
+    switch (teluguFont) {
+      case 'Potta One':
+        fontFamily = "'Potta One', sans-serif"
+        break
+      case 'Noto Sans':
+        fontFamily = "'Noto Sans', sans-serif"
+        break
+      case 'Inter':
+        fontFamily = "'Inter', sans-serif"
+        break
+      default:
+        fontFamily = "'Potta One', sans-serif"
+    }
+    
+    console.log('Getting Telugu font family:', fontFamily, 'for font:', teluguFont)
+    return fontFamily
   }
 
   const handleTranspose = (delta: number) => {
@@ -325,13 +399,13 @@ export function SongViewer({
                       handleToggleFavorite()
                     }}
                     sx={{
-                      bgcolor: isFavorite ? "rgba(234, 179, 8, 0.9)" : "rgba(0,0,0,0.6)",
+                      bgcolor: isFavorite ? "rgba(233, 30, 99, 0.9)" : "rgba(0,0,0,0.6)",
                       backdropFilter: "blur(10px)",
                       color: "white",
-                      "&:hover": { bgcolor: "rgba(234, 179, 8, 0.9)" },
+                      "&:hover": { bgcolor: "rgba(233, 30, 99, 0.9)" },
                     }}
                   >
-                    {isFavorite ? <StarIcon /> : <StarBorderIcon />}
+                    {isFavorite ? <FavoriteIcon /> : <FavoriteBorderIcon />}
                   </IconButton>
                 </Tooltip>
                 <Tooltip title="Presentation Mode">
@@ -543,8 +617,154 @@ export function SongViewer({
 
       {/* Controls */}
       <Box sx={{ p: 1.5, borderBottom: "1px solid rgb(38, 38, 38)", bgcolor: "rgb(15, 15, 15)" }}>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+        {isMobile ? (
+          // Mobile: Show only language tabs and settings button
+          <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+            {/* Language Tabs */}
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", mr: 0.5, fontSize: "0.75rem" }}>
+                Language:
+              </Typography>
+              <ButtonGroup size="small" variant="outlined">
+                <Button
+                  onClick={() => handleLanguageChange(0)}
+                  sx={{
+                    bgcolor: lyricsTab === 0 ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                    color: lyricsTab === 0 ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                    borderColor: lyricsTab === 0 ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                    "&:hover": {
+                      bgcolor: lyricsTab === 0 ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                      borderColor: "rgb(59, 130, 246)",
+                      color: "rgb(59, 130, 246)",
+                    },
+                    textTransform: "none",
+                    fontSize: "0.75rem",
+                    fontWeight: lyricsTab === 0 ? 600 : 400,
+                    minWidth: "60px",
+                  }}
+                >
+                  Telugu
+                </Button>
+                <Button
+                  onClick={() => handleLanguageChange(1)}
+                  sx={{
+                    bgcolor: lyricsTab === 1 ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                    color: lyricsTab === 1 ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                    borderColor: lyricsTab === 1 ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                    "&:hover": {
+                      bgcolor: lyricsTab === 1 ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                      borderColor: "rgb(59, 130, 246)",
+                      color: "rgb(59, 130, 246)",
+                    },
+                    textTransform: "none",
+                    fontSize: "0.75rem",
+                    fontWeight: lyricsTab === 1 ? 600 : 400,
+                    minWidth: "60px",
+                  }}
+                >
+                  English
+                </Button>
+              </ButtonGroup>
+            </Stack>
+
+            {/* Settings Button */}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<SettingsIcon />}
+              onClick={() => setMobileOverlayOpen(true)}
+              sx={{
+                color: "rgb(163, 163, 163)",
+                borderColor: "rgb(38, 38, 38)",
+                "&:hover": {
+                  borderColor: "rgb(59, 130, 246)",
+                  bgcolor: "rgb(30, 30, 30)",
+                  color: "rgb(59, 130, 246)",
+                },
+                textTransform: "none",
+                fontSize: "0.75rem",
+              }}
+            >
+              Settings
+            </Button>
+          </Stack>
+        ) : (
+          // Desktop: Show all controls
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+          {/* Language Tabs - First Position */}
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", mr: 0.5, fontSize: "0.75rem" }}>
+              Language:
+            </Typography>
+            <ButtonGroup size="small" variant="outlined">
+              <Button
+                onClick={() => handleLanguageChange(0)}
+                sx={{
+                  bgcolor: lyricsTab === 0 ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: lyricsTab === 0 ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: lyricsTab === 0 ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                  "&:hover": {
+                    bgcolor: lyricsTab === 0 ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                    borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
+                  },
+                  textTransform: "none",
+                  fontSize: "0.75rem",
+                  fontWeight: lyricsTab === 0 ? 600 : 400,
+                  minWidth: "60px",
+                }}
+              >
+                Telugu
+              </Button>
+              <Button
+                onClick={() => handleLanguageChange(1)}
+                sx={{
+                  bgcolor: lyricsTab === 1 ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: lyricsTab === 1 ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: lyricsTab === 1 ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                  "&:hover": {
+                    bgcolor: lyricsTab === 1 ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                    borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
+                  },
+                  textTransform: "none",
+                  fontSize: "0.75rem",
+                  fontWeight: lyricsTab === 1 ? 600 : 400,
+                  minWidth: "60px",
+                }}
+              >
+                English
+              </Button>
+            </ButtonGroup>
+          </Stack>
+
+
+          {/* Bold Toggle */}
+          <Divider orientation="vertical" flexItem sx={{ borderColor: "rgb(38, 38, 38)" }} />
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<FormatBoldIcon />}
+            onClick={handleBoldToggle}
+            sx={{
+              bgcolor: isBold ? "rgba(59, 130, 246, 0.1)" : "transparent",
+              color: isBold ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+              borderColor: isBold ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+              "&:hover": {
+                bgcolor: isBold ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                borderColor: "rgb(59, 130, 246)",
+                color: "rgb(59, 130, 246)",
+              },
+              textTransform: "none",
+              fontSize: "0.75rem",
+              fontWeight: isBold ? 600 : 400,
+            }}
+          >
+            Bold
+          </Button>
+
           {/* Font Size */}
+          <Divider orientation="vertical" flexItem sx={{ borderColor: "rgb(38, 38, 38)" }} />
           <Stack direction="row" spacing={0.5} alignItems="center">
             <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", mr: 0.5, fontSize: "0.75rem" }}>
               Font:
@@ -589,6 +809,72 @@ export function SongViewer({
             </ButtonGroup>
           </Stack>
 
+          {/* Text Alignment */}
+          <Divider orientation="vertical" flexItem sx={{ borderColor: "rgb(38, 38, 38)" }} />
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", mr: 0.5, fontSize: "0.75rem" }}>
+              Align:
+            </Typography>
+            <ButtonGroup size="small" variant="outlined">
+              <Button
+                onClick={() => handleTextAlignChange('left')}
+                sx={{
+                  bgcolor: textAlign === 'left' ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: textAlign === 'left' ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: textAlign === 'left' ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                  "&:hover": {
+                    bgcolor: textAlign === 'left' ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                    borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
+                  },
+                  textTransform: "none",
+                  fontSize: "0.75rem",
+                  fontWeight: textAlign === 'left' ? 600 : 400,
+                  minWidth: "40px",
+                }}
+              >
+                <FormatAlignLeftIcon fontSize="small" />
+              </Button>
+              <Button
+                onClick={() => handleTextAlignChange('center')}
+                sx={{
+                  bgcolor: textAlign === 'center' ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: textAlign === 'center' ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: textAlign === 'center' ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                  "&:hover": {
+                    bgcolor: textAlign === 'center' ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                    borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
+                  },
+                  textTransform: "none",
+                  fontSize: "0.75rem",
+                  fontWeight: textAlign === 'center' ? 600 : 400,
+                  minWidth: "40px",
+                }}
+              >
+                <FormatAlignCenterIcon fontSize="small" />
+              </Button>
+              <Button
+                onClick={() => handleTextAlignChange('right')}
+                sx={{
+                  bgcolor: textAlign === 'right' ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: textAlign === 'right' ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: textAlign === 'right' ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                  "&:hover": {
+                    bgcolor: textAlign === 'right' ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                    borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
+                  },
+                  textTransform: "none",
+                  fontSize: "0.75rem",
+                  fontWeight: textAlign === 'right' ? 600 : 400,
+                  minWidth: "40px",
+                }}
+              >
+                <FormatAlignRightIcon fontSize="small" />
+              </Button>
+            </ButtonGroup>
+          </Stack>
 
           {/* Transpose */}
           {song.chords && (
@@ -665,35 +951,316 @@ export function SongViewer({
             </>
           )}
         </Stack>
+        )}
       </Box>
+
+      {/* Mobile Overlay Drawer */}
+      <Drawer
+        anchor="bottom"
+        open={mobileOverlayOpen}
+        onClose={() => setMobileOverlayOpen(false)}
+        PaperProps={{
+          sx: {
+            bgcolor: "rgb(15, 15, 15)",
+            borderTop: "1px solid rgb(38, 38, 38)",
+            borderRadius: "16px 16px 0 0",
+            maxHeight: "80vh",
+          },
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          {/* Header */}
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+            <Typography variant="h6" sx={{ color: "rgb(250, 250, 250)", fontWeight: 600 }}>
+              Display Settings
+            </Typography>
+            <IconButton
+              onClick={() => setMobileOverlayOpen(false)}
+              sx={{ color: "rgb(163, 163, 163)" }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          {/* Telugu Font Selection */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ color: "rgb(163, 163, 163)", mb: 1, fontSize: "0.875rem" }}>
+              Telugu Font
+            </Typography>
+            <FormControl fullWidth size="small">
+              <Select
+                value={teluguFont}
+                onChange={(e) => handleTeluguFontChange(e.target.value)}
+                sx={{
+                  color: "rgb(250, 250, 250)",
+                  fontSize: "0.875rem",
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "rgb(38, 38, 38)",
+                  },
+                  "&:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "rgb(59, 130, 246)",
+                  },
+                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "rgb(59, 130, 246)",
+                  },
+                  "& .MuiSelect-icon": {
+                    color: "rgb(163, 163, 163)",
+                  },
+                }}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      bgcolor: "rgb(15, 15, 15)",
+                      border: "1px solid rgb(38, 38, 38)",
+                      "& .MuiMenuItem-root": {
+                        color: "rgb(250, 250, 250)",
+                        fontSize: "0.875rem",
+                        "&:hover": {
+                          bgcolor: "rgb(30, 30, 30)",
+                        },
+                        "&.Mui-selected": {
+                          bgcolor: "rgba(59, 130, 246, 0.1)",
+                          color: "rgb(59, 130, 246)",
+                        },
+                      },
+                    },
+                  },
+                }}
+              >
+                <MenuItem value="Potta One">Potta One</MenuItem>
+                <MenuItem value="Noto Sans">Noto Sans</MenuItem>
+                <MenuItem value="Inter">Inter</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          {/* Bold Toggle */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ color: "rgb(163, 163, 163)", mb: 1, fontSize: "0.875rem" }}>
+              Text Style
+            </Typography>
+            <Button
+              fullWidth
+              size="large"
+              variant="outlined"
+              startIcon={<FormatBoldIcon />}
+              onClick={handleBoldToggle}
+              sx={{
+                bgcolor: isBold ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                color: isBold ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                borderColor: isBold ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                "&:hover": {
+                  bgcolor: isBold ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                  borderColor: "rgb(59, 130, 246)",
+                  color: "rgb(59, 130, 246)",
+                },
+                textTransform: "none",
+                fontSize: "0.875rem",
+                fontWeight: isBold ? 600 : 400,
+                py: 1.5,
+              }}
+            >
+              Bold Text
+            </Button>
+          </Box>
+
+          {/* Font Size */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ color: "rgb(163, 163, 163)", mb: 1, fontSize: "0.875rem" }}>
+              Font Size
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button
+                onClick={() => handleFontSizeChange(-2)}
+                sx={{
+                  color: "rgb(163, 163, 163)",
+                  borderColor: "rgb(38, 38, 38)",
+                  "&:hover": { borderColor: "rgb(59, 130, 246)", bgcolor: "rgb(30, 30, 30)" },
+                  minWidth: "48px",
+                  py: 1.5,
+                }}
+              >
+                <RemoveIcon />
+              </Button>
+              <Box sx={{ 
+                flex: 1, 
+                textAlign: "center", 
+                py: 1.5, 
+                bgcolor: "rgb(25, 25, 25)", 
+                borderRadius: 1,
+                border: "1px solid rgb(38, 38, 38)"
+              }}>
+                <Typography variant="h6" sx={{ color: "rgb(250, 250, 250)" }}>
+                  {fontSize}
+                </Typography>
+              </Box>
+              <Button
+                onClick={() => handleFontSizeChange(2)}
+                sx={{
+                  color: "rgb(163, 163, 163)",
+                  borderColor: "rgb(38, 38, 38)",
+                  "&:hover": { borderColor: "rgb(59, 130, 246)", bgcolor: "rgb(30, 30, 30)" },
+                  minWidth: "48px",
+                  py: 1.5,
+                }}
+              >
+                <AddIcon />
+              </Button>
+            </Stack>
+          </Box>
+
+          {/* Text Alignment */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ color: "rgb(163, 163, 163)", mb: 1, fontSize: "0.875rem" }}>
+              Text Alignment
+            </Typography>
+            <ButtonGroup fullWidth size="large" variant="outlined">
+              <Button
+                onClick={() => handleTextAlignChange('left')}
+                sx={{
+                  bgcolor: textAlign === 'left' ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: textAlign === 'left' ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: textAlign === 'left' ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                  "&:hover": {
+                    bgcolor: textAlign === 'left' ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                    borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
+                  },
+                  textTransform: "none",
+                  fontSize: "0.875rem",
+                  fontWeight: textAlign === 'left' ? 600 : 400,
+                  py: 1.5,
+                }}
+              >
+                <FormatAlignLeftIcon />
+              </Button>
+              <Button
+                onClick={() => handleTextAlignChange('center')}
+                sx={{
+                  bgcolor: textAlign === 'center' ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: textAlign === 'center' ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: textAlign === 'center' ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                  "&:hover": {
+                    bgcolor: textAlign === 'center' ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                    borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
+                  },
+                  textTransform: "none",
+                  fontSize: "0.875rem",
+                  fontWeight: textAlign === 'center' ? 600 : 400,
+                  py: 1.5,
+                }}
+              >
+                <FormatAlignCenterIcon />
+              </Button>
+              <Button
+                onClick={() => handleTextAlignChange('right')}
+                sx={{
+                  bgcolor: textAlign === 'right' ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: textAlign === 'right' ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: textAlign === 'right' ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                  "&:hover": {
+                    bgcolor: textAlign === 'right' ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                    borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
+                  },
+                  textTransform: "none",
+                  fontSize: "0.875rem",
+                  fontWeight: textAlign === 'right' ? 600 : 400,
+                  py: 1.5,
+                }}
+              >
+                <FormatAlignRightIcon />
+              </Button>
+            </ButtonGroup>
+          </Box>
+
+          {/* Transpose (if chords available) */}
+          {song.chords && (
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" sx={{ color: "rgb(163, 163, 163)", mb: 1, fontSize: "0.875rem" }}>
+                Transpose
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Button
+                  onClick={() => handleTranspose(-1)}
+                  disabled={transpose <= -6}
+                  sx={{
+                    color: "rgb(163, 163, 163)",
+                    borderColor: "rgb(38, 38, 38)",
+                    "&:hover": { borderColor: "rgb(59, 130, 246)", bgcolor: "rgb(30, 30, 30)" },
+                    minWidth: "48px",
+                    py: 1.5,
+                  }}
+                >
+                  <RemoveIcon />
+                </Button>
+                <Box sx={{ 
+                  flex: 1, 
+                  textAlign: "center", 
+                  py: 1.5, 
+                  bgcolor: "rgb(25, 25, 25)", 
+                  borderRadius: 1,
+                  border: "1px solid rgb(38, 38, 38)"
+                }}>
+                  <Typography variant="h6" sx={{ color: "rgb(250, 250, 250)" }}>
+                    {transpose > 0 ? `+${transpose}` : transpose}
+                  </Typography>
+                </Box>
+                <Button
+                  onClick={() => handleTranspose(1)}
+                  disabled={transpose >= 6}
+                  sx={{
+                    color: "rgb(163, 163, 163)",
+                    borderColor: "rgb(38, 38, 38)",
+                    "&:hover": { borderColor: "rgb(59, 130, 246)", bgcolor: "rgb(30, 30, 30)" },
+                    minWidth: "48px",
+                    py: 1.5,
+                  }}
+                >
+                  <AddIcon />
+                </Button>
+              </Stack>
+            </Box>
+          )}
+
+          {/* Chords Toggle (if chords available) */}
+          {song.chords && (
+            <Box>
+              <Typography variant="subtitle2" sx={{ color: "rgb(163, 163, 163)", mb: 1, fontSize: "0.875rem" }}>
+                Display Options
+              </Typography>
+              <Button
+                fullWidth
+                size="large"
+                variant="outlined"
+                startIcon={<MusicNoteIcon />}
+                onClick={() => setShowChords(!showChords)}
+                sx={{
+                  bgcolor: showChords ? "rgba(59, 130, 246, 0.1)" : "transparent",
+                  color: showChords ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
+                  borderColor: showChords ? "rgb(59, 130, 246)" : "rgb(38, 38, 38)",
+                  "&:hover": {
+                    bgcolor: showChords ? "rgba(59, 130, 246, 0.2)" : "rgb(30, 30, 30)",
+                    borderColor: "rgb(59, 130, 246)",
+                    color: "rgb(59, 130, 246)",
+                  },
+                  textTransform: "none",
+                  fontSize: "0.875rem",
+                  fontWeight: showChords ? 600 : 400,
+                  py: 1.5,
+                }}
+              >
+                {showChords ? 'Hide Chords' : 'Show Chords'}
+              </Button>
+            </Box>
+          )}
+        </Box>
+      </Drawer>
 
       {/* Lyrics */}
       <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
-        <Box>
-          <Tabs
-            value={lyricsTab}
-            onChange={(_, newValue) => setLyricsTab(newValue)}
-            sx={{
-              borderBottom: 1,
-              borderColor: 'rgb(38, 38, 38)',
-              mb: 2,
-              '& .MuiTab-root': {
-                color: 'rgb(163, 163, 163)',
-                textTransform: 'none',
-                fontWeight: 500,
-                '&.Mui-selected': {
-                  color: 'rgb(59, 130, 246)',
-                },
-              },
-              '& .MuiTabs-indicator': {
-                backgroundColor: 'rgb(59, 130, 246)',
-              },
-            }}
-          >
-            <Tab label="Telugu" />
-            <Tab label="English" />
-          </Tabs>
-          <Stack spacing={3}>
+        <Stack spacing={3}>
             {currentLyrics.length > 0 ? currentLyrics.map((line, index) => (
               <Box key={index}>
                 {showChords && song.chords && currentChords[index] && (
@@ -705,6 +1272,7 @@ export function SongViewer({
                       fontWeight: 600,
                       mb: 0.5,
                       fontSize: `${fontSize - 2}px`,
+                      textAlign: textAlign,
                     }}
                   >
                     {currentChords[index]}
@@ -717,6 +1285,9 @@ export function SongViewer({
                     fontSize: `${fontSize}px`,
                     lineHeight: 1.8,
                     whiteSpace: "pre-wrap",
+                    textAlign: textAlign,
+                    fontFamily: getTeluguFontFamily(),
+                    fontWeight: lyricsTab === 0 && isBold ? 'bold' : 400,
                   }}
                 >
                   {line || "\u00A0"}
@@ -729,15 +1300,14 @@ export function SongViewer({
                   color: "rgb(163, 163, 163)",
                   fontSize: `${fontSize}px`,
                   lineHeight: 1.8,
-                  textAlign: "center",
+                  textAlign: textAlign,
                   py: 4,
                 }}
               >
                 {lyricsTab === 0 ? "No Telugu lyrics available" : "No English lyrics available"}
               </Typography>
             )}
-          </Stack>
-        </Box>
+        </Stack>
       </Box>
 
       {/* Playlist Menu */}

@@ -3,6 +3,10 @@ import type { Playlist } from "./types"
 const STORAGE_KEYS = {
   FAVORITES: "verseview_favorites",
   FONT_SIZE: "verseview_font_size",
+  TEXT_ALIGN: "verseview_text_align",
+  LANGUAGE_TAB: "verseview_language_tab",
+  TELUGU_FONT: "verseview_telugu_font",
+  IS_BOLD: "verseview_is_bold",
   RECENTLY_VIEWED: "verseview_recently_viewed",
   PLAYLISTS: "verseview_playlists",
 }
@@ -47,6 +51,50 @@ export const storage = {
   setFontSize: (size: number): void => {
     if (typeof window === "undefined") return
     localStorage.setItem(STORAGE_KEYS.FONT_SIZE, size.toString())
+  },
+
+  getTextAlign: (): 'left' | 'center' | 'right' => {
+    if (typeof window === "undefined") return 'left'
+    const align = localStorage.getItem(STORAGE_KEYS.TEXT_ALIGN)
+    return (align as 'left' | 'center' | 'right') || 'left'
+  },
+
+  setTextAlign: (align: 'left' | 'center' | 'right'): void => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(STORAGE_KEYS.TEXT_ALIGN, align)
+  },
+
+  getLanguageTab: (): number => {
+    if (typeof window === "undefined") return 0
+    const tab = localStorage.getItem(STORAGE_KEYS.LANGUAGE_TAB)
+    return tab ? Number.parseInt(tab) : 0
+  },
+
+  setLanguageTab: (tab: number): void => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(STORAGE_KEYS.LANGUAGE_TAB, tab.toString())
+  },
+
+  getTeluguFont: (): string => {
+    if (typeof window === "undefined") return "Potta One"
+    const font = localStorage.getItem(STORAGE_KEYS.TELUGU_FONT)
+    return font || "Potta One"
+  },
+
+  setTeluguFont: (font: string): void => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(STORAGE_KEYS.TELUGU_FONT, font)
+  },
+
+  getIsBold: (): boolean => {
+    if (typeof window === "undefined") return false
+    const bold = localStorage.getItem(STORAGE_KEYS.IS_BOLD)
+    return bold === "true"
+  },
+
+  setIsBold: (bold: boolean): void => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(STORAGE_KEYS.IS_BOLD, bold.toString())
   },
 
   getRecentlyViewed: (): string[] => {

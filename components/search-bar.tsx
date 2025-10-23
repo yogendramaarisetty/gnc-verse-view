@@ -26,7 +26,6 @@ import HistoryIcon from "@mui/icons-material/History"
 import PlayArrowIcon from "@mui/icons-material/PlayArrow"
 import ThumbUpIcon from "@mui/icons-material/ThumbUp"
 import VisibilityIcon from "@mui/icons-material/Visibility"
-import StarIcon from "@mui/icons-material/Star"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import type { Song } from "@/lib/types"
 import { useBackendSearch } from "@/lib/hooks/useBackendSearch"
@@ -91,6 +90,8 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
 
   // Handle song selection
   const handleSelectSong = useCallback((song: Song) => {
+    console.log('🔍 SearchBar: Song selected:', song.title, song.id)
+    console.log('🔍 SearchBar: Calling onSelectSong handler')
     onSelectSong(song)
     setShowDropdown(false)
     setSearchQuery("")

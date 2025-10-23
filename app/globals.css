@@ -1,6 +1,24 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Import Telugu fonts from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Potta+One:wght@400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+/* Telugu font classes for better font loading */
+.telugu-font-potti {
+  font-family: 'Potta One', sans-serif;
+}
+
+.telugu-font-dhurjati {
+  font-family: 'Noto Sans', sans-serif;
+}
+
+.telugu-font-mandali {
+  font-family: 'Inter', sans-serif;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 :root {

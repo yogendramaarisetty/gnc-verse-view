@@ -11,8 +11,7 @@ import {
   Tooltip,
 } from "@mui/material"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
-import StarIcon from "@mui/icons-material/Star"
-import HistoryIcon from "@mui/icons-material/History"
+import FavoriteIcon from "@mui/icons-material/Favorite"
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
 import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay"
 import FilterListIcon from "@mui/icons-material/FilterList"
@@ -26,7 +25,6 @@ export type FilterMode =
   | "all"
   | "trending"
   | "favorites"
-  | "recent"
   | "all-time-hits"
   | "playlists"
 
@@ -52,6 +50,8 @@ interface FilterSidebarProps {
   selectedSongId?: string
   onToggleFavorite?: (songId: string) => void
   isFavorite?: (songId: string) => boolean
+  scrollToSongId?: string | null
+  onScrollComplete?: () => void
 }
 
 export function FilterSidebar({
@@ -76,6 +76,8 @@ export function FilterSidebar({
   selectedSongId,
   onToggleFavorite,
   isFavorite,
+  scrollToSongId,
+  onScrollComplete,
 }: FilterSidebarProps) {
   const [showSearch, setShowSearch] = useState(false)
   
@@ -90,11 +92,10 @@ export function FilterSidebar({
       all: allSongsCount,
       trending: trendingCount,
       favorites: favoritesCount,
-      recent: recentCount,
       'all-time-hits': allTimeHitsCount,
       playlists: playlistsCount,
     }
-  }, [songs, allSongsCount, favoritesCount, recentCount, playlistsCount])
+  }, [songs, allSongsCount, favoritesCount, playlistsCount])
 
   // Handle filter mode changes without resetting data
   const handleFilterModeChange = (mode: FilterMode) => {
@@ -119,16 +120,9 @@ export function FilterSidebar({
       color: 'secondary' as const,
     },
     {
-      id: 'recent' as FilterMode,
-      label: 'Recent',
-      icon: <HistoryIcon sx={{ fontSize: '1rem' }} />,
-      count: filterCounts.recent,
-      color: 'success' as const,
-    },
-    {
       id: 'favorites' as FilterMode,
       label: 'Favorites',
-      icon: <StarIcon sx={{ fontSize: '1rem' }} />,
+      icon: <FavoriteIcon sx={{ fontSize: '1rem' }} />,
       count: filterCounts.favorites,
       color: 'warning' as const,
     },
@@ -288,6 +282,8 @@ export function FilterSidebar({
             error={allSongsError}
             onToggleFavorite={onToggleFavorite}
             isFavorite={isFavorite}
+            scrollToSongId={scrollToSongId}
+            onScrollComplete={onScrollComplete}
           />
         ) : (
           <InfiniteSongList
@@ -304,6 +300,8 @@ export function FilterSidebar({
             error={null}
             onToggleFavorite={onToggleFavorite}
             isFavorite={isFavorite}
+            scrollToSongId={scrollToSongId}
+            onScrollComplete={onScrollComplete}
           />
         )}
       </Box>

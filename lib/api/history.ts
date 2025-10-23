@@ -12,7 +12,7 @@ export interface HistorySong {
   artist: {
     id: string
     name: string
-    photoUrl: string
+    photoUrl: string | null
   }
 }
 
@@ -52,19 +52,37 @@ export async function getHistory(limit: number = 20): Promise<HistorySong[]> {
     }
 
     // Transform data to match frontend interface
-    return history?.map(item => ({
-      id: item.songs.id,
-      title: item.songs.title,
-      titleTransliteration: item.songs.title_transliteration,
-      language: item.songs.language,
-      thumbnail: item.songs.thumbnail_url,
-      viewedAt: item.viewed_at,
-      artist: {
-        id: item.songs.artists.id,
-        name: item.songs.artists.name,
-        photoUrl: item.songs.artists.photo_url,
+    const transformedHistory = history?.map(item => {
+      console.log('🔄 Transforming history item:', {
+        songId: item.song_id,
+        songTitle: item.songs?.title,
+        artistName: item.songs?.artists?.name,
+        language: item.songs?.language,
+        hasSongs: !!item.songs,
+        hasArtists: !!item.songs?.artists
+      })
+      
+      return {
+        id: item.songs.id,
+        title: item.songs.title,
+        titleTransliteration: item.songs.title_transliteration,
+        language: item.songs.language,
+        thumbnail: item.songs.thumbnail_url,
+        viewedAt: item.viewed_at,
+        artist: {
+          id: item.songs.artists.id,
+          name: item.songs.artists.name,
+          photoUrl: item.songs.artists.photo_url,
+        }
       }
-    })) || []
+    }) || []
+    
+    console.log('📚 Final transformed history:', {
+      count: transformedHistory.length,
+      songs: transformedHistory.map(h => ({ id: h.id, title: h.title, artist: h.artist.name }))
+    })
+    
+    return transformedHistory
   } catch (error) {
     console.error('Error in getHistory:', error)
     throw error
