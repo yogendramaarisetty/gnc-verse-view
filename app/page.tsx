@@ -26,6 +26,18 @@ import { toast } from "sonner"
 
 const SIDEBAR_WIDTH = 400
 
+// Utility function to deduplicate songs by ID
+function deduplicateSongs(songs: Song[]): Song[] {
+  const seen = new Set<string>()
+  return songs.filter(song => {
+    if (seen.has(song.id)) {
+      return false
+    }
+    seen.add(song.id)
+    return true
+  })
+}
+
 export default function Home() {
   const [selectedSong, setSelectedSong] = useState<Song | null>(null)
   const [selectedLanguage, setSelectedLanguage] = useState("Telugu")
@@ -35,7 +47,6 @@ export default function Home() {
   const [presentationMode, setPresentationMode] = useState(false)
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null)
   const [sidebarView, setSidebarView] = useState<'navigation' | 'songList'>('songList')
-  const [sidebarSongs, setSidebarSongs] = useState<Song[]>([])
   const [scrollToSongId, setScrollToSongId] = useState<string | null>(null)
 
   const theme = useTheme()
@@ -76,10 +87,64 @@ export default function Home() {
   } = useInfiniteSongs(selectedLanguage)
   
   // Use online songs
-  const allSongs = onlineAllSongs
+  const baseAllSongs = onlineAllSongs
   const allSongsLoadingState = allSongsLoading
   const allSongsLoadingMoreState = allSongsLoadingMore
   const allSongsErrorState = allSongsError
+
+  // Create combined allSongs that includes history songs
+  const allSongs = useMemo(() => {
+    if (!history || history.length === 0) {
+      return baseAllSongs
+    }
+
+    // Get current song IDs from baseAllSongs
+    const currentSongIds = new Set(baseAllSongs.map(s => s.id))
+    const missingHistorySongs: Song[] = []
+    
+    for (const historyItem of history) {
+      if (!currentSongIds.has(historyItem.id)) {
+        // Transform history item to Song object
+        if (historyItem.id && historyItem.title && historyItem.artist?.id && historyItem.artist?.name) {
+          const song: Song = {
+            id: historyItem.id,
+            title: historyItem.title,
+            titleTransliteration: historyItem.titleTransliteration || '',
+            artist: {
+              id: historyItem.artist.id,
+              name: historyItem.artist.name,
+              photoUrl: historyItem.artist.photoUrl || '',
+              totalSongs: 0,
+              totalViews: 0,
+            },
+            language: historyItem.language as "Telugu" | "Malayalam" | "English" | "Hindi" | "Tamil" | "Bengali" | "Kannada",
+            tags: [],
+            lyrics: [],
+            englishLyrics: [],
+            chords: [],
+            originalKey: '',
+            thumbnail: historyItem.thumbnail || '',
+            hasVideo: false,
+            videoUrl: '',
+            youtubeViews: 0,
+            youtubeLikes: 0,
+            releaseDate: '',
+            viewCount: 0,
+            trending: false,
+          }
+          missingHistorySongs.push(song)
+        }
+      }
+    }
+    
+    // Combine base songs with missing history songs
+    const combinedSongs = [...baseAllSongs, ...missingHistorySongs]
+    
+    // Remove duplicates
+    return combinedSongs.filter((song, index, self) => 
+      index === self.findIndex(s => s.id === song.id)
+    )
+  }, [baseAllSongs, history])
 
   // Debug logging
   console.log('🎵 Main page songs state:', {
@@ -198,133 +263,108 @@ export default function Home() {
   // State for optimistic favorite updates
   const [optimisticFavorites, setOptimisticFavorites] = useState<Set<string>>(new Set())
 
-  // Extract recently visited songs from history that are not in the current song list
+  // Disabled history processing to prevent sidebar reordering
   useEffect(() => {
-    console.log('🔍 History processing effect triggered:', {
-      historyLength: history?.length || 0,
-      songsLength: songs?.length || 0,
-      sidebarSongsLength: sidebarSongs?.length || 0
-    })
-
-    if (!history || history.length === 0) {
-      console.log('📭 No history data, clearing recent songs')
-      setRecentSongs([])
-      return
-    }
-
-    try {
-      // Get all current song IDs
-      const currentSongIds = new Set([
-        ...songs.map(s => s.id),
-        ...sidebarSongs.map(s => s.id)
-      ])
-
-      console.log('📋 Current song IDs:', Array.from(currentSongIds))
-      console.log('📚 History items:', history.map(h => ({ id: h.id, title: h.title, artist: h.artist?.name })))
-
-      // Filter out existing songs and add defensive checks
-      const missingHistoryItems = history.filter(h => {
-        const isMissing = !currentSongIds.has(h.id)
-        console.log(`🔍 Checking history item ${h.id} (${h.title}):`, {
-          isMissing,
-          hasId: !!h.id,
-          hasTitle: !!h.title,
-          hasArtist: !!h.artist,
-          hasArtistName: !!h.artist?.name
-        })
-        return isMissing
-      })
-
-      console.log('🎯 Missing history items:', missingHistoryItems.length)
-
-      // Transform history items to Song objects with defensive checks
-      const recentSongsFromHistory: Song[] = []
-      
-      for (const historyItem of missingHistoryItems.slice(0, 10)) {
-        console.log('🔄 Transforming history item to song:', {
-          id: historyItem.id,
-          title: historyItem.title,
-          artistName: historyItem.artist?.name,
-          language: historyItem.language
-        })
-
-        // Defensive checks for required fields
-        if (!historyItem.id || !historyItem.title || !historyItem.artist?.id || !historyItem.artist?.name) {
-          console.warn('⚠️ Skipping history item due to missing required fields:', historyItem)
-          continue
-        }
-
-        // Transform the history song data to match Song interface
-        const song: Song = {
-          id: historyItem.id,
-          title: historyItem.title,
-          titleTransliteration: historyItem.titleTransliteration || '',
-          artist: {
-            id: historyItem.artist.id,
-            name: historyItem.artist.name,
-            photoUrl: historyItem.artist.photoUrl || '',
-            totalSongs: 0,
-            totalViews: 0,
-          },
-          language: historyItem.language as "Telugu" | "Malayalam" | "English" | "Hindi" | "Tamil" | "Bengali" | "Kannada",
-          tags: [],
-          lyrics: [],
-          englishLyrics: [],
-          chords: [],
-          originalKey: '',
-          thumbnail: historyItem.thumbnail || '',
-          hasVideo: false,
-          videoUrl: '',
-          youtubeViews: 0,
-          youtubeLikes: 0,
-          releaseDate: '',
-          viewCount: 0,
-          trending: false,
-        }
-        
-        recentSongsFromHistory.push(song)
-      }
-
-      console.log('✅ Recent songs from history processed:', {
-        totalHistory: history.length,
-        missingSongs: recentSongsFromHistory.length,
-        recentSongTitles: recentSongsFromHistory.map(s => s.title),
-        recentSongIds: recentSongsFromHistory.map(s => s.id)
-      })
-
-      setRecentSongs(recentSongsFromHistory)
-    } catch (error) {
-      console.error('❌ Error processing recent songs from history:', error)
-      setRecentSongs([])
-    }
-  }, [history, songs, sidebarSongs])
+    console.log('🔍 History processing disabled to prevent sidebar reordering')
+    // Keep recentSongs empty to prevent any reordering
+    setRecentSongs([])
+  }, []) // Disabled - empty dependency array prevents reordering
 
   // Combine original songs with searched songs and recent songs for sidebar
   const combinedSongs = useMemo(() => {
-    console.log('🔄 Combining songs:', {
-      sidebarSongs: sidebarSongs.length,
-      originalSongs: songs.length,
-      recentSongs: recentSongs.length,
-      sidebarSongTitles: sidebarSongs.map(s => s.title),
-      recentSongTitles: recentSongs.map(s => s.title)
+    console.log('🔄 Creating stable sidebar songs:', {
+      originalSongs: songs.length
     })
 
-    const allSongs = [...sidebarSongs, ...songs, ...recentSongs]
-    console.log('📊 All songs before deduplication:', allSongs.length)
+    // Start with current songs only - no history-based additions for stable sidebar
+    const allSongs = [...songs]
     
-    // Remove duplicates based on song ID
-    const uniqueSongs = allSongs.filter((song, index, self) => 
-      index === self.findIndex(s => s.id === song.id)
-    )
+    console.log('📊 All songs before deduplication:', {
+      total: allSongs.length,
+      songIds: allSongs.map(s => s.id),
+      hasDuplicates: allSongs.length !== new Set(allSongs.map(s => s.id)).size
+    })
+    
+    // Remove duplicates using efficient deduplication function
+    const uniqueSongs = deduplicateSongs(allSongs)
     
     console.log('✅ Final combined songs:', {
       total: uniqueSongs.length,
+      removedDuplicates: allSongs.length - uniqueSongs.length,
       songTitles: uniqueSongs.map(s => s.title),
       songIds: uniqueSongs.map(s => s.id)
     })
     
     return uniqueSongs
-  }, [sidebarSongs, songs, recentSongs])
+  }, [songs]) // Only depends on songs - completely stable sidebar
+
+  // Combined songs for search (includes history for search results)
+  const searchSongs = useMemo(() => {
+    console.log('🔄 Creating search songs:', {
+      sidebarSongs: combinedSongs.length,
+      recentSongs: recentSongs.length,
+      historyLength: history?.length || 0
+    })
+
+    // Start with stable sidebar songs
+    const allSongs = [...combinedSongs]
+    
+    // Add recent songs for search functionality
+    allSongs.push(...recentSongs)
+    
+    // Add history songs that are not already in the list (for search results)
+    if (history && history.length > 0) {
+      const currentSongIds = new Set(allSongs.map(s => s.id))
+      const missingHistorySongs: Song[] = []
+      
+      for (const historyItem of history) {
+        if (!currentSongIds.has(historyItem.id)) {
+          // Transform history item to Song object
+          if (historyItem.id && historyItem.title && historyItem.artist?.id && historyItem.artist?.name) {
+            const song: Song = {
+              id: historyItem.id,
+              title: historyItem.title,
+              titleTransliteration: historyItem.titleTransliteration || '',
+              artist: {
+                id: historyItem.artist.id,
+                name: historyItem.artist.name,
+                photoUrl: historyItem.artist.photoUrl || '',
+                totalSongs: 0,
+                totalViews: 0,
+              },
+              language: historyItem.language as "Telugu" | "Malayalam" | "English" | "Hindi" | "Tamil" | "Bengali" | "Kannada",
+              tags: [],
+              lyrics: [],
+              englishLyrics: [],
+              chords: [],
+              originalKey: '',
+              thumbnail: historyItem.thumbnail || '',
+              hasVideo: false,
+              videoUrl: '',
+              youtubeViews: 0,
+              youtubeLikes: 0,
+              releaseDate: '',
+              viewCount: 0,
+              trending: false,
+            }
+            missingHistorySongs.push(song)
+          }
+        }
+      }
+      
+      allSongs.push(...missingHistorySongs)
+    }
+    
+    // Remove duplicates using efficient deduplication function
+    const uniqueSongs = deduplicateSongs(allSongs)
+    
+    console.log('✅ Final search songs:', {
+      total: uniqueSongs.length,
+      removedDuplicates: allSongs.length - uniqueSongs.length
+    })
+    
+    return uniqueSongs
+  }, [combinedSongs, recentSongs, history])
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
@@ -332,7 +372,8 @@ export default function Home() {
 
   const handleSelectSong = async (song: Song) => {
     setSelectedSong(song)
-    // Track view in history for both authenticated and anonymous users
+    
+    // Only track history for sidebar clicks - nothing else
     if (song?.id && typeof song.id === 'string') {
       try {
         addToHistory(song.id)
@@ -340,19 +381,10 @@ export default function Home() {
         console.error('Failed to add song to history:', error)
         // Don't prevent song selection from working
       }
-    } else {
-      console.error('Invalid song object passed to handleSelectSong:', song)
-    }
-    if (isMobile) {
-      setMobileOpen(false)
     }
     
-    // Load full song data if not already loaded
-    if (!isSongFullyLoaded(song.id)) {
-      const fullSong = await loadFullSong(song.id)
-      if (fullSong) {
-        setSelectedSong(fullSong)
-      }
+    if (isMobile) {
+      setMobileOpen(false)
     }
   }
 
@@ -360,39 +392,24 @@ export default function Home() {
     console.log('🎵 Song selected from search:', song.title, song.id)
     setSelectedSong(song)
     
-    // Add song to the top of sidebar if not already present
-    const isAlreadyInSidebar = songs.some(s => s.id === song.id)
+    // Only track history for search results that are not already in the sidebar
+    const isAlreadyInSidebar = combinedSongs.some(s => s.id === song.id)
     console.log('🔍 Is song already in sidebar?', isAlreadyInSidebar)
     
-    if (!isAlreadyInSidebar) {
-      console.log('➕ Adding song to sidebar:', song.title)
-      setSidebarSongs(prevSongs => {
-        // Remove if already exists to avoid duplicates
-        const filteredSongs = prevSongs.filter(s => s.id !== song.id)
-        // Add to the top
-        const newSongs = [song, ...filteredSongs]
-        console.log('📝 New sidebar songs:', newSongs.map(s => s.title))
-        return newSongs
-      })
-      
-      // Trigger scroll to this song after a short delay to ensure DOM update
-      console.log('🎯 Setting scroll target:', song.id)
-      setTimeout(() => {
-        setScrollToSongId(song.id)
-      }, 100)
-    }
-    
-    // Track view in history for both authenticated and anonymous users
-    if (song?.id && typeof song.id === 'string') {
+    if (!isAlreadyInSidebar && song?.id && typeof song.id === 'string') {
+      console.log('➕ Adding search result to history:', song.title)
       try {
         addToHistory(song.id)
       } catch (error) {
         console.error('Failed to add song to history:', error)
         // Don't prevent song selection from working
       }
+    } else if (isAlreadyInSidebar) {
+      console.log('ℹ️ Song already in sidebar, not tracking in history')
     } else {
       console.error('Invalid song object passed to handleSelectSongFromSearch:', song)
     }
+    
     if (isMobile) {
       setMobileOpen(false)
     }

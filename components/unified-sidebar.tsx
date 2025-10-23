@@ -31,6 +31,7 @@ interface UnifiedSidebarProps {
   onShowNavigation: () => void
   onShowSongList: () => void
   onShowAllSongs?: () => void
+  selectedSongId?: string
   allSongsCount?: number
 }
 
@@ -57,6 +58,7 @@ export function UnifiedSidebar({
   onShowNavigation,
   onShowSongList,
   onShowAllSongs,
+  selectedSongId,
   allSongsCount,
 }: UnifiedSidebarProps) {
   const getPlaylistSongs = () => {
@@ -77,7 +79,7 @@ export function UnifiedSidebar({
     <EnhancedSongList
       songs={selectedPlaylist ? getPlaylistSongs() : filteredSongs}
       onSelectSong={onSelectSong}
-      selectedSongId={undefined}
+      selectedSongId={selectedSongId}
       selectedLanguage={selectedLanguage}
       viewMode={viewMode}
       history={history}

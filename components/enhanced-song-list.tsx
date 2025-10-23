@@ -64,8 +64,30 @@ export function EnhancedSongList({
     setRecentlyViewed(storage.getRecentlyViewed())
   }, [])
 
+  // Utility function to deduplicate songs by ID
+  const deduplicateSongs = (songs: Song[]): Song[] => {
+    const seen = new Set<string>()
+    return songs.filter(song => {
+      if (seen.has(song.id)) {
+        return false
+      }
+      seen.add(song.id)
+      return true
+    })
+  }
+
   const filteredSongs = useMemo(() => {
-    let filtered = songs
+    // First deduplicate songs by ID to prevent duplicates
+    const uniqueSongs = deduplicateSongs(songs)
+    
+    console.log('🔍 EnhancedSongList deduplication:', {
+      originalCount: songs.length,
+      uniqueCount: uniqueSongs.length,
+      removedDuplicates: songs.length - uniqueSongs.length,
+      hasDuplicates: songs.length !== new Set(songs.map(s => s.id)).size
+    })
+    
+    let filtered = uniqueSongs
 
     // Apply view mode filters
     if (viewMode === "trending") {

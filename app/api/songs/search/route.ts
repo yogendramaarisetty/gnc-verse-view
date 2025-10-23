@@ -158,7 +158,7 @@ function calculateFuzzyScore(query: string, text: string): number {
       // Check for similar sounding words (basic phonetic matching)
       if (queryWord.length > 3 && textWord.length > 3) {
         const similarity = 1 - (levenshteinDistance(queryWord, textWord) / Math.max(queryWord.length, textWord.length))
-        if (similarity > 0.7) {
+        if (similarity > 0.5) { // Lowered threshold for better typo tolerance
           partialMatches++
           break
         }
@@ -199,8 +199,8 @@ function calculateFuzzyScore(query: string, text: string): number {
   const maxLength = Math.max(queryLower.length, textLower.length)
   const similarity = 1 - (distance / maxLength)
   
-  // Only consider matches with at least 60% similarity
-  if (similarity >= 0.6) {
+  // Lowered threshold for better typo tolerance
+  if (similarity >= 0.5) {
     return similarity * 60
   }
   
@@ -212,14 +212,16 @@ function calculateFuzzyScore(query: string, text: string): number {
  */
 function normalizeTransliteration(text: string): string {
   return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}\s]/gu, '') // Preserve all Unicode letters/numbers, remove only special chars
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    // Conservative transliteration normalization - only normalize obvious patterns
     .replace(/aa+/g, 'a')  // "Aaradhana" -> "Aradhana"
     .replace(/ee+/g, 'e')  // "Ee" -> "E"
     .replace(/ii+/g, 'i')  // "Iii" -> "I"
     .replace(/oo+/g, 'o')  // "Ooo" -> "O"
     .replace(/uu+/g, 'u')  // "Uuu" -> "U"
-    .replace(/h+/g, 'h')   // "Hallelujah" -> "Haleluya"
-    .replace(/l+/g, 'l')   // "Hallelujah" -> "Haleluya"
-    .replace(/j+/g, 'j')   // "Hallelujah" -> "Haleluya"
     // Enhanced Telugu transliteration normalization - be more conservative
     .replace(/yaweh/gi, 'yave')  // "Yaweh" -> "Yave"
     .replace(/yave/gi, 'yave')  // Standardize Yave variations
@@ -284,9 +286,9 @@ function performFuzzySearch(songs: any[], query: string, language?: string): Sea
     
     // Calculate weighted total score with new priority system
     const weights = {
-      title: 0.2,           // Title matches are secondary
-      titleTransliteration: 0.5, // Transliteration is MOST important
-      artist: 0.2,          // Artist matches are important
+      title: 0.15,           // Title matches are secondary
+      titleTransliteration: 0.6, // Transliteration is MOST important
+      artist: 0.15,          // Artist matches are important
       lyrics: 0.05,         // Lyrics matches are less important
       tags: 0.05            // Tag matches are less important
     }
@@ -300,7 +302,6 @@ function performFuzzySearch(songs: any[], query: string, language?: string): Sea
     
     // Only include songs with meaningful matches - prioritize literal matches
     if (totalScore > 20 || matches.titleTransliteration >= 800) {
-      console.log(`Song "${song.title}" (${song.title_transliteration}) scored ${totalScore} for query "${query}"`)
       results.push({
         song: {
           id: song.id,
@@ -417,7 +418,7 @@ export async function GET(request: NextRequest) {
     // Perform database search with multiple strategies
     let searchResults: any[] = []
     
-    // Strategy 1: Priority search on title_transliteration (most important)
+    // Strategy 1: Exact match on title_transliteration (highest priority)
     const startTime1 = Date.now()
     let supabaseQuery1 = supabase
       .from('songs')
@@ -431,10 +432,7 @@ export async function GET(request: NextRequest) {
           total_views
         )
       `)
-      .textSearch('title_transliteration', query, {
-        type: 'websearch',
-        config: 'english'
-      })
+      .ilike('title_transliteration', `%${query}%`)
       .limit(limit)
 
     // Apply language filter if provided
@@ -449,8 +447,8 @@ export async function GET(request: NextRequest) {
     supabaseLogger.log({
       method: 'GET',
       table: 'songs',
-      operation: 'textSearch',
-      url: `songs.textSearch(title_transliteration:${query})`,
+      operation: 'ilike',
+      url: `songs.ilike(title_transliteration:${query})`,
       resultCount: titleResults?.length || 0,
       duration: duration1,
       status: titleError ? 'error' : 'success',
@@ -475,10 +473,7 @@ export async function GET(request: NextRequest) {
           total_views
         )
       `)
-      .textSearch('title', query, {
-        type: 'websearch',
-        config: 'english'
-      })
+      .ilike('title', `%${query}%`)
       .limit(limit)
 
     // Apply language filter if provided
@@ -493,8 +488,8 @@ export async function GET(request: NextRequest) {
     supabaseLogger.log({
       method: 'GET',
       table: 'songs',
-      operation: 'textSearch',
-      url: `songs.textSearch(title:${query})`,
+      operation: 'ilike',
+      url: `songs.ilike(title:${query})`,
       resultCount: transliterationResults?.length || 0,
       duration: duration2,
       status: transliterationError ? 'error' : 'success',
@@ -553,7 +548,6 @@ export async function GET(request: NextRequest) {
 
     // Strategy 4: If still no results, get all songs for fuzzy search
     if (searchResults.length === 0) {
-      console.log('No results from database search, falling back to fuzzy search for query:', query)
       const startTime4 = Date.now()
       let supabaseQuery4 = supabase
         .from('songs')
@@ -598,7 +592,6 @@ export async function GET(request: NextRequest) {
     let finalResults: SearchResult[] = []
     
     // Get a broader set of songs for fuzzy search to ensure we don't miss matches
-    console.log('Getting broader set of songs for fuzzy search')
     const startTimeAll = Date.now()
     let supabaseQueryAll = supabase
       .from('songs')
@@ -623,10 +616,9 @@ export async function GET(request: NextRequest) {
     const durationAll = Date.now() - startTimeAll
 
     if (!allSongsError && allSongs) {
-      console.log(`Got ${allSongs.length} songs for fuzzy search`)
       const startTimeFuzzy = Date.now()
       try {
-        const fuzzyResults = performFuzzySearch(allSongs, query, language)
+        const fuzzyResults = performFuzzySearch(allSongs, query, language || undefined)
         const durationFuzzy = Date.now() - startTimeFuzzy
 
         // Log the fuzzy search
@@ -671,8 +663,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!finalResults || finalResults.length === 0) {
-      // Return empty results with helpful message for debugging
-      console.log(`No meaningful matches found for query: "${query}"`)
+      // Return empty results with helpful message
       return NextResponse.json({ 
         songs: [],
         message: `No songs found matching "${query}". Try different keywords or check spelling.`,

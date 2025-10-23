@@ -199,27 +199,9 @@ export function InfiniteSongList({
       })
     }
 
-    // Create a map of recent song IDs with their visit order (lower index = more recent)
-    const recentSongOrder = new Map<string, number>()
-    history.forEach((historyItem, index) => {
-      recentSongOrder.set(historyItem.id, index)
-    })
-
-    // Sort songs with recent songs first, then by the specified sort criteria
+    // Disabled history-based sorting to prevent reordering
+    // Sort songs by the specified sort criteria only (no history-based reordering)
     filtered.sort((a, b) => {
-      const aIsRecent = recentSongOrder.has(a.id)
-      const bIsRecent = recentSongOrder.has(b.id)
-      
-      // If both are recent, sort by visit order (most recent first)
-      if (aIsRecent && bIsRecent) {
-        return (recentSongOrder.get(a.id) || 0) - (recentSongOrder.get(b.id) || 0)
-      }
-      
-      // If only one is recent, prioritize the recent one
-      if (aIsRecent && !bIsRecent) return -1
-      if (!aIsRecent && bIsRecent) return 1
-      
-      // If neither is recent, sort by the specified criteria
       switch (sortBy) {
         case 'title':
           return a.title.localeCompare(b.title)
@@ -248,7 +230,7 @@ export function InfiniteSongList({
     })
 
     return filtered
-  }, [songs, searchQuery, viewMode, sortBy, isFavorite, history])
+  }, [songs, searchQuery, viewMode, sortBy, isFavorite]) // Removed history dependency to prevent reordering
 
 
   // Format numbers

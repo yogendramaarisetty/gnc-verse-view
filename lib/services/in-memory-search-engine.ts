@@ -31,8 +31,6 @@ export class InMemorySearchEngine {
    * Initialize the search engine with all songs
    */
   async initialize(songs: Song[]): Promise<void> {
-    console.log(`Initializing in-memory search engine with ${songs.length} songs`)
-    
     // Clear existing data
     this.trie = { children: new Map(), songIds: new Set(), isEndOfWord: false }
     this.songIndex.clear()
@@ -44,8 +42,6 @@ export class InMemorySearchEngine {
       this.songIndex.set(song.id, song)
       this.indexSong(song)
     }
-
-    console.log(`Search engine initialized with ${this.songIndex.size} songs`)
   }
 
   /**
@@ -81,7 +77,7 @@ export class InMemorySearchEngine {
     return text
       .toLowerCase()
       .trim()
-      .replace(/[^\w\s]/g, '') // Remove special characters
+      .replace(/[^\p{L}\p{N}\s]/gu, '') // Preserve all Unicode letters/numbers, remove only special chars
       .replace(/\s+/g, ' ') // Normalize whitespace
   }
 
@@ -207,6 +203,42 @@ export class InMemorySearchEngine {
       }
     }
 
+    // Also check for exact matches in individual words (for partial word matching)
+    const queryWords = query.split(/\s+/)
+    if (queryWords.length > 1) {
+      for (const [songId, song] of this.songIndex) {
+        if (language && song.language !== language) continue
+
+        const fields = [
+          { text: song.title, field: 'title' as const },
+          { text: song.titleTransliteration, field: 'titleTransliteration' as const },
+          { text: song.artist.name, field: 'artist' as const }
+        ]
+
+        for (const { text, field } of fields) {
+          if (!text) continue
+          
+          const normalizedText = this.normalizeText(text)
+          const textWords = normalizedText.split(/\s+/)
+          
+          // Check if all query words exist in the text
+          const allWordsMatch = queryWords.every(queryWord => 
+            textWords.some(textWord => textWord === queryWord)
+          )
+          
+          if (allWordsMatch) {
+            results.push({
+              song,
+              score: field === 'titleTransliteration' ? 1000 : 700,
+              matchType: 'exact',
+              field
+            })
+            break
+          }
+        }
+      }
+    }
+
     return results
   }
 
@@ -253,6 +285,42 @@ export class InMemorySearchEngine {
       }
     }
 
+    // Also check for prefix matches in individual words (for partial word matching)
+    const queryWords = query.split(/\s+/)
+    if (queryWords.length > 1) {
+      for (const [songId, song] of this.songIndex) {
+        if (language && song.language !== language) continue
+
+        const fields = [
+          { text: song.title, field: 'title' as const },
+          { text: song.titleTransliteration, field: 'titleTransliteration' as const },
+          { text: song.artist.name, field: 'artist' as const }
+        ]
+
+        for (const { text, field } of fields) {
+          if (!text) continue
+          
+          const normalizedText = this.normalizeText(text)
+          const textWords = normalizedText.split(/\s+/)
+          
+          // Check if all query words are prefixes of text words
+          const allWordsMatch = queryWords.every(queryWord => 
+            textWords.some(textWord => textWord.startsWith(queryWord))
+          )
+          
+          if (allWordsMatch) {
+            results.push({
+              song,
+              score: field === 'titleTransliteration' ? 900 : 600,
+              matchType: 'prefix',
+              field
+            })
+            break
+          }
+        }
+      }
+    }
+
     return results
   }
 
@@ -285,6 +353,42 @@ export class InMemorySearchEngine {
       }
     }
 
+    // Also check for contains matches in individual words (for partial word matching)
+    const queryWords = query.split(/\s+/)
+    if (queryWords.length > 1) {
+      for (const [songId, song] of this.songIndex) {
+        if (language && song.language !== language) continue
+
+        const fields = [
+          { text: song.title, field: 'title' as const },
+          { text: song.titleTransliteration, field: 'titleTransliteration' as const },
+          { text: song.artist.name, field: 'artist' as const }
+        ]
+
+        for (const { text, field } of fields) {
+          if (!text) continue
+          
+          const normalizedText = this.normalizeText(text)
+          const textWords = normalizedText.split(/\s+/)
+          
+          // Check if all query words are contained in text words
+          const allWordsMatch = queryWords.every(queryWord => 
+            textWords.some(textWord => textWord.includes(queryWord))
+          )
+          
+          if (allWordsMatch) {
+            results.push({
+              song,
+              score: field === 'titleTransliteration' ? 800 : 500,
+              matchType: 'contains',
+              field
+            })
+            break
+          }
+        }
+      }
+    }
+
     return results
   }
 
@@ -308,7 +412,7 @@ export class InMemorySearchEngine {
 
         const normalizedText = this.normalizeText(text)
         const similarity = this.calculateSimilarity(query, normalizedText)
-        if (similarity > 0.6) { // Only include reasonably similar matches
+        if (similarity > 0.5) { // Lowered threshold for better typo tolerance
           results.push({
             song,
             score: Math.floor(similarity * 400), // Scale to 0-400 range
@@ -316,6 +420,53 @@ export class InMemorySearchEngine {
             field
           })
           break
+        }
+      }
+    }
+
+    // Also check for fuzzy matches in individual words (for partial word matching)
+    const queryWords = query.split(/\s+/)
+    if (queryWords.length > 1) {
+      for (const [songId, song] of this.songIndex) {
+        if (language && song.language !== language) continue
+
+        const fields = [
+          { text: song.title, field: 'title' as const },
+          { text: song.titleTransliteration, field: 'titleTransliteration' as const },
+          { text: song.artist.name, field: 'artist' as const }
+        ]
+
+        for (const { text, field } of fields) {
+          if (!text) continue
+          
+          const normalizedText = this.normalizeText(text)
+          const textWords = normalizedText.split(/\s+/)
+          
+          // Check if all query words have fuzzy matches in text words
+          const allWordsMatch = queryWords.every(queryWord => 
+            textWords.some(textWord => {
+              const wordSimilarity = this.calculateSimilarity(queryWord, textWord)
+              return wordSimilarity > 0.5
+            })
+          )
+          
+          if (allWordsMatch) {
+            // Calculate overall similarity for scoring
+            const overallSimilarity = queryWords.reduce((acc, queryWord) => {
+              const bestMatch = Math.max(...textWords.map(textWord => 
+                this.calculateSimilarity(queryWord, textWord)
+              ))
+              return acc + bestMatch
+            }, 0) / queryWords.length
+            
+            results.push({
+              song,
+              score: Math.floor(overallSimilarity * 400),
+              matchType: 'fuzzy',
+              field
+            })
+            break
+          }
         }
       }
     }
@@ -380,7 +531,9 @@ export class InMemorySearchEngine {
     if (this.searchCache.size >= this.maxCacheSize) {
       // Remove oldest entry (simple LRU)
       const firstKey = this.searchCache.keys().next().value
-      this.searchCache.delete(firstKey)
+      if (firstKey) {
+        this.searchCache.delete(firstKey)
+      }
     }
     
     this.searchCache.set(key, results)

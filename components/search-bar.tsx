@@ -85,8 +85,6 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
 
   // Handle song selection
   const handleSelectSong = useCallback((song: Song) => {
-    console.log('🔍 SearchBar: Song selected:', song.title, song.id)
-    console.log('🔍 SearchBar: Calling onSelectSong handler')
     onSelectSong(song)
     setShowDropdown(false)
     setSearchQuery("")
@@ -96,7 +94,6 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
   // Handle cache clear (no longer needed with in-memory search)
   const handleClearCache = useCallback(async () => {
     // Cache is automatically managed by the search engine
-    console.log('Cache cleared automatically by search engine')
   }, [])
 
   // Close dropdown when clicking outside
@@ -118,13 +115,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
 
   // Debug logging for results
   useEffect(() => {
-    console.log('Search Results Debug:', {
-      hasResults,
-      resultsCount: results.length,
-      loading,
-      query,
-      firstResult: results[0]
-    })
+    // Debug logging removed for production
   }, [hasResults, results, loading, query])
 
   // Show loading state when any search is in progress
@@ -132,8 +123,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
 
   // Track loading state changes
   useEffect(() => {
-    console.log('🔍 [SEARCHBAR] isLoading changed to:', isLoading)
-    console.log('🔍 [SEARCHBAR] isSearching:', isSearching)
+    // Loading state tracking removed for production
   }, [isLoading, isSearching])
 
   const formatNumber = (num: number): string => {

@@ -55,7 +55,7 @@ export function useHybridSearch({
 
   // Track state changes for debugging
   useEffect(() => {
-    console.log('🔍 [STATE] isSearching changed to:', isSearching)
+    // State tracking removed for production
   }, [isSearching])
 
   // Initialize search engine with all songs
@@ -85,7 +85,6 @@ export function useHybridSearch({
         await searchEngine.current.initialize(songs)
         
         isInitialized.current = true
-        console.log(`Hybrid search initialized with ${songs.length} songs`)
         
       } catch (err) {
         console.error('Failed to initialize search engine:', err)
@@ -162,12 +161,10 @@ export function useHybridSearch({
 
   // Main search function with hybrid approach
   const search = useCallback((searchQuery: string) => {
-    console.log('🔍 [SEARCH] Starting search for:', searchQuery)
     setQuery(searchQuery)
     setError(null)
 
     if (!searchQuery.trim()) {
-      console.log('🔍 [SEARCH] Empty query - clearing states')
       setResults([])
       setIsSearching(false)
       currentSearchId.current = null
@@ -177,29 +174,23 @@ export function useHybridSearch({
     // Generate unique search ID to prevent race conditions
     const searchId = `${Date.now()}-${Math.random()}`
     currentSearchId.current = searchId
-    console.log('🔍 [SEARCH] Generated search ID:', searchId)
 
     // Start search process - set loading to true for entire process
-    console.log('🔍 [SEARCH] Setting isSearching = true for entire search process')
     setIsSearching(true)
 
     // Clear any existing timer to prevent race conditions
     if (serverDebounceTimer.current) {
-      console.log('🔍 [SEARCH] Clearing previous timer to prevent race conditions')
       clearTimeout(serverDebounceTimer.current)
     }
 
     // 1. Instant client-side search (no debounce)
-    console.log('🔍 [SEARCH] Performing client search...')
     const clientResults = performClientSearch(searchQuery)
-    console.log('🔍 [SEARCH] Client results:', clientResults.length)
     
     if (clientResults.length > 0) {
       setResults(clientResults)
       
       // If we have good client results, we're done
       if (clientResults.length >= 5 || clientResults.some(r => r.score >= 800)) {
-        console.log('🔍 [SEARCH] Good client results found - ending search')
         setIsSearching(false)
         currentSearchId.current = null
         return
@@ -208,24 +199,17 @@ export function useHybridSearch({
 
     // 2. Server search as fallback (with debounce)
     if (enableServerFallback) {
-      console.log('🔍 [SEARCH] Setting up server search with debounce:', serverDebounceMs + 'ms')
-      
       serverDebounceTimer.current = setTimeout(async () => {
         // Check if this is still the current search
         if (currentSearchId.current !== searchId) {
-          console.log('🔍 [SERVER] Search cancelled - different search in progress')
           return
         }
         
-        console.log('🔍 [SERVER] Starting server search for:', searchQuery)
-        console.log('🔍 [SERVER] isSearching remains true during server search')
         try {
           const serverResults = await performServerSearch(searchQuery)
-          console.log('🔍 [SERVER] Server search completed, results:', serverResults.length)
           
           // Check again if this is still the current search
           if (currentSearchId.current !== searchId) {
-            console.log('🔍 [SERVER] Search cancelled after server completion - different search in progress')
             return
           }
           
@@ -238,16 +222,13 @@ export function useHybridSearch({
               .sort((a, b) => b.score - a.score)
               .slice(0, maxResults)
             
-            console.log('🔍 [SERVER] Merged results:', mergedResults.length)
             setResults(mergedResults)
           } else if (clientResults.length === 0) {
             // No results from either source
-            console.log('🔍 [SERVER] No results from either source')
             setResults([])
           }
           
         } catch (err) {
-          console.error('🔍 [SERVER] Server search failed:', err)
           // Keep client results if server fails
           if (clientResults.length > 0) {
             setResults(clientResults)
@@ -255,17 +236,13 @@ export function useHybridSearch({
         } finally {
           // Only set isSearching to false if this is still the current search
           if (currentSearchId.current === searchId) {
-            console.log('🔍 [SERVER] Server search finished - setting isSearching to false')
             setIsSearching(false)
             currentSearchId.current = null
-          } else {
-            console.log('🔍 [SERVER] Search already cancelled - not updating isSearching')
           }
         }
       }, serverDebounceMs)
     } else {
       // No server fallback, search is complete after client search
-      console.log('🔍 [SEARCH] No server fallback - ending search after client')
       setIsSearching(false)
       currentSearchId.current = null
     }
@@ -273,7 +250,6 @@ export function useHybridSearch({
 
   // Clear search
   const clearSearch = useCallback(() => {
-    console.log('🔍 [CLEAR] Clearing search - setting isSearching to false')
     setQuery('')
     setResults([])
     setError(null)
