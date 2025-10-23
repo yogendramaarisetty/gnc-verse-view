@@ -40,6 +40,8 @@ interface InfiniteSongListProps {
   loading?: boolean
   loadingMore?: boolean
   error?: string | null
+  onToggleFavorite?: (songId: string) => void
+  isFavorite?: (songId: string) => boolean
 }
 
 export function InfiniteSongList({
@@ -54,18 +56,13 @@ export function InfiniteSongList({
   loading = false,
   loadingMore = false,
   error = null,
+  onToggleFavorite,
+  isFavorite,
 }: InfiniteSongListProps) {
-  const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'title' | 'artist' | 'views' | 'trending'>('title')
   const [filterBy, setFilterBy] = useState<string>('all')
   const observerTarget = useRef<HTMLDivElement>(null)
-
-  // Load favorites from storage
-  useEffect(() => {
-    const savedFavorites = storage.getFavorites()
-    setFavorites(new Set(savedFavorites))
-  }, [])
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -91,7 +88,12 @@ export function InfiniteSongList({
 
   // Filter and sort songs
   const filteredSongs = useMemo(() => {
-    let filtered = songs
+    // First deduplicate songs by ID to prevent duplicates
+    const uniqueSongs = songs.filter((song, index, self) => 
+      index === self.findIndex(s => s.id === song.id)
+    )
+    
+    let filtered = uniqueSongs
 
     // Filter by search query
     if (searchQuery.trim()) {
@@ -105,14 +107,14 @@ export function InfiniteSongList({
       )
     }
 
-    // Filter by category
-    if (filterBy !== 'all') {
+    // Filter by viewMode
+    if (viewMode !== 'all' && viewMode !== 'all-songs') {
       filtered = filtered.filter((song) => {
-        switch (filterBy) {
+        switch (viewMode) {
           case 'trending':
             return song.trending
           case 'favorites':
-            return favorites.has(song.id)
+            return isFavorite ? isFavorite(song.id) : false
           case 'recent':
             return history.some((h) => h.songId === song.id)
           default:
@@ -138,22 +140,8 @@ export function InfiniteSongList({
     })
 
     return filtered
-  }, [songs, searchQuery, filterBy, sortBy, favorites, history])
+  }, [songs, searchQuery, viewMode, sortBy, isFavorite, history])
 
-  // Toggle favorite
-  const toggleFavorite = useCallback(
-    (songId: string) => {
-      const newFavorites = new Set(favorites)
-      if (newFavorites.has(songId)) {
-        newFavorites.delete(songId)
-      } else {
-        newFavorites.add(songId)
-      }
-      setFavorites(newFavorites)
-      storage.setFavorites(Array.from(newFavorites))
-    },
-    [favorites]
-  )
 
   // Format numbers
   const formatNumber = (num: number): string => {
@@ -218,9 +206,51 @@ export function InfiniteSongList({
     }}>
       {/* Song List */}
       <Box sx={{ flex: 1, overflow: 'auto' }}>
-        <List dense disablePadding>
-          {filteredSongs.map((song) => (
-            <ListItem key={song.id} disablePadding>
+        {filteredSongs.length === 0 && !loading ? (
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            py: 4, 
+            px: 3,
+            textAlign: 'center'
+          }}>
+            <Typography variant="h6" sx={{ color: 'rgb(163, 163, 163)', mb: 1 }}>
+              No songs available
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)' }}>
+              {viewMode === 'favorites' ? 'No favorite songs yet' :
+               viewMode === 'recent' ? 'No recently viewed songs' :
+               viewMode === 'trending' ? 'No trending songs available' :
+               'No songs found for the current filter'}
+            </Typography>
+          </Box>
+        ) : (
+          <List dense disablePadding>
+            {filteredSongs.map((song) => (
+            <ListItem 
+              key={song.id} 
+              disablePadding
+              secondaryAction={
+                onToggleFavorite && isFavorite ? (
+                  <IconButton
+                    edge="end"
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onToggleFavorite(song.id)
+                    }}
+                    sx={{ 
+                      color: isFavorite(song.id) ? "rgb(234, 179, 8)" : "rgb(163, 163, 163)",
+                      mr: 0.5
+                    }}
+                  >
+                    {isFavorite(song.id) ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+                  </IconButton>
+                ) : null
+              }
+            >
               <ListItemButton
                 onClick={() => onSelectSong(song)}
                 selected={selectedSongId === song.id}
@@ -228,6 +258,7 @@ export function InfiniteSongList({
                   py: 0.5,
                   px: 1,
                   minHeight: 48,
+                  pr: onToggleFavorite ? 5 : 1, // Add padding for favorite button
                   '&.Mui-selected': {
                     bgcolor: 'rgb(30, 30, 30)',
                     '&:hover': {
@@ -244,8 +275,9 @@ export function InfiniteSongList({
                     src={song.thumbnail}
                     sx={{
                       width: 40,
-                      height: 32,
+                      height: 40,
                       bgcolor: 'rgb(38, 38, 38)',
+                      borderRadius: 1, // Square corners
                     }}
                   >
                     <PlayArrowIcon sx={{ color: 'rgb(163, 163, 163)', fontSize: 16 }} />
@@ -253,73 +285,24 @@ export function InfiniteSongList({
                 </ListItemAvatar>
                 <ListItemText
                   primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-                      <Typography variant="body2" sx={{ color: 'rgb(250, 250, 250)', fontWeight: 500, fontSize: '0.875rem' }}>
-                        {song.title}
-                      </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgb(250, 250, 250)', fontWeight: 500, fontSize: '0.875rem' }}>
+                      {song.titleTransliteration ? `${song.title} | ${song.titleTransliteration}` : song.title}
                       {song.trending && (
-                        <TrendingUpIcon sx={{ fontSize: '0.875rem', color: 'rgb(59, 130, 246)' }} />
+                        <TrendingUpIcon sx={{ fontSize: '0.875rem', color: 'rgb(59, 130, 246)', ml: 0.5, verticalAlign: 'middle' }} />
                       )}
-                    </Box>
+                    </Typography>
                   }
                   secondary={
-                    <Box>
-                      <Typography component="span" variant="body2" sx={{ color: 'rgb(163, 163, 163)', mb: 0.25, display: 'block', fontSize: '0.75rem' }}>
-                        {song.titleTransliteration}
-                      </Typography>
-                      <Typography component="span" variant="caption" sx={{ color: 'rgb(163, 163, 163)', display: 'block', fontSize: '0.7rem' }}>
-                        {song.artist.name}
-                      </Typography>
-                    </Box>
+                    <Typography variant="caption" sx={{ color: 'rgb(163, 163, 163)', fontSize: '0.7rem' }}>
+                      {song.artist.name} • {formatNumber(song.viewCount)} views
+                    </Typography>
                   }
                 />
-                
-                {/* Additional info outside ListItemText to avoid hydration issues */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5, ml: 9 }}>
-                  {song.hasVideo && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <ThumbUpIcon sx={{ fontSize: '0.8rem', color: 'rgb(163, 163, 163)' }} />
-                      <Typography component="span" variant="caption" sx={{ color: 'rgb(163, 163, 163)' }}>
-                        {formatNumber(song.youtubeLikes)}
-                      </Typography>
-                    </Box>
-                  )}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <VisibilityIcon sx={{ fontSize: '0.8rem', color: 'rgb(163, 163, 163)' }} />
-                    <Typography component="span" variant="caption" sx={{ color: 'rgb(163, 163, 163)' }}>
-                      {formatNumber(song.viewCount)}
-                    </Typography>
-                  </Box>
-                  <Chip
-                    label={song.language}
-                    size="small"
-                    variant="outlined"
-                    sx={{
-                      height: 20,
-                      fontSize: '0.65rem',
-                      borderColor: 'rgb(64, 64, 64)',
-                      color: 'rgb(163, 163, 163)',
-                    }}
-                  />
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Tooltip title={favorites.has(song.id) ? 'Remove from favorites' : 'Add to favorites'}>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        toggleFavorite(song.id)
-                      }}
-                      sx={{ color: favorites.has(song.id) ? 'rgb(255, 193, 7)' : 'rgb(163, 163, 163)' }}
-                    >
-                      {favorites.has(song.id) ? <StarIcon /> : <StarBorderIcon />}
-                    </IconButton>
-                  </Tooltip>
-                </Box>
               </ListItemButton>
             </ListItem>
           ))}
         </List>
+        )}
 
         {/* Loading More Indicator */}
         {loadingMore && (

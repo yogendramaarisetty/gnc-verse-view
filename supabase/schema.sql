@@ -20,6 +20,7 @@ CREATE TABLE songs (
   language VARCHAR(50) NOT NULL,
   tags TEXT[] DEFAULT '{}',
   lyrics TEXT[] NOT NULL,
+  english_lyrics TEXT[],
   chords TEXT[],
   original_key VARCHAR(10),
   thumbnail_url TEXT,
@@ -88,19 +89,20 @@ CREATE INDEX idx_user_history_user_id ON user_history(user_id);
 CREATE INDEX idx_user_history_viewed_at ON user_history(viewed_at DESC);
 
 -- Create a custom immutable function for full-text search
-CREATE OR REPLACE FUNCTION songs_search_vector(title TEXT, title_transliteration TEXT, lyrics TEXT[])
+CREATE OR REPLACE FUNCTION songs_search_vector(title TEXT, title_transliteration TEXT, lyrics TEXT[], english_lyrics TEXT[])
 RETURNS tsvector AS $$
 BEGIN
   RETURN to_tsvector('english', 
     COALESCE(title, '') || ' ' || 
     COALESCE(title_transliteration, '') || ' ' || 
-    COALESCE(array_to_string(lyrics, ' '), '')
+    COALESCE(array_to_string(lyrics, ' '), '') || ' ' ||
+    COALESCE(array_to_string(english_lyrics, ' '), '')
   );
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Create full-text search index using the custom function
-CREATE INDEX idx_songs_search ON songs USING gin(songs_search_vector(title, title_transliteration, lyrics));
+CREATE INDEX idx_songs_search ON songs USING gin(songs_search_vector(title, title_transliteration, lyrics, english_lyrics));
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE artists ENABLE ROW LEVEL SECURITY;

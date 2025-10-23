@@ -5,25 +5,25 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     
-    // Get song counts by language
-    const { data: languageCounts, error } = await supabase
-      .from('songs')
-      .select('language')
-      .then(({ data, error }) => {
-        if (error) throw error
-        
-        // Count songs by language
-        const counts = data.reduce((acc: Record<string, number>, song) => {
-          acc[song.language] = (acc[song.language] || 0) + 1
-          return acc
-        }, {})
-        
-        return { data: counts, error: null }
-      })
-
-    if (error) {
-      console.error('Error fetching song counts:', error)
-      return NextResponse.json({ error: 'Failed to fetch song counts' }, { status: 500 })
+    // Get counts for each language individually for better performance
+    const languages = ['Telugu', 'Malayalam', 'English', 'Hindi', 'Tamil']
+    const counts: Record<string, number> = {}
+    
+    // Get count for each language (unique songs only)
+    for (const language of languages) {
+      const { data, error } = await supabase
+        .from('songs')
+        .select('title')
+        .eq('language', language)
+      
+      if (error) {
+        console.error(`Error fetching count for ${language}:`, error)
+        counts[language] = 0
+      } else {
+        // Count unique titles (equivalent to SELECT COUNT(DISTINCT title))
+        const uniqueTitles = new Set(data?.map(song => song.title) || [])
+        counts[language] = uniqueTitles.size
+      }
     }
 
     // Get total count
@@ -37,8 +37,13 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      languageCounts: languageCounts || {},
+      languageCounts: counts,
       totalCount: totalCount || 0
+    }, {
+      headers: {
+        'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
+        'Content-Type': 'application/json'
+      }
     })
 
   } catch (error) {

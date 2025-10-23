@@ -20,7 +20,6 @@ import SearchIcon from "@mui/icons-material/Search"
 import type { Song } from "@/lib/types"
 import type { HistorySong } from "@/lib/api/history"
 import { InfiniteSongList } from "@/components/infinite-song-list"
-import { useInfiniteScroll } from "@/lib/hooks/useInfiniteScroll"
 import { SearchBar } from "@/components/search-bar"
 
 export type FilterMode = 
@@ -37,6 +36,12 @@ interface FilterSidebarProps {
   filterMode: FilterMode
   onFilterModeChange: (mode: FilterMode) => void
   songs: Song[]
+  allSongs?: Song[]
+  allSongsLoading?: boolean
+  allSongsLoadingMore?: boolean
+  allSongsError?: string | null
+  allSongsHasMore?: boolean
+  onLoadMoreAllSongs?: () => void
   history: HistorySong[]
   favoritesCount: number
   recentCount: number
@@ -44,6 +49,9 @@ interface FilterSidebarProps {
   allSongsCount: number
   onSelectSong: (song: Song) => void
   onShowAllSongs: () => void
+  selectedSongId?: string
+  onToggleFavorite?: (songId: string) => void
+  isFavorite?: (songId: string) => boolean
 }
 
 export function FilterSidebar({
@@ -52,6 +60,12 @@ export function FilterSidebar({
   filterMode,
   onFilterModeChange,
   songs,
+  allSongs,
+  allSongsLoading,
+  allSongsLoadingMore,
+  allSongsError,
+  allSongsHasMore,
+  onLoadMoreAllSongs,
   history,
   favoritesCount,
   recentCount,
@@ -59,23 +73,13 @@ export function FilterSidebar({
   allSongsCount,
   onSelectSong,
   onShowAllSongs,
+  selectedSongId,
+  onToggleFavorite,
+  isFavorite,
 }: FilterSidebarProps) {
   const [showSearch, setShowSearch] = useState(false)
   
-  // Use infinite scroll for all songs
-  const {
-    songs: infiniteSongs,
-    loading,
-    loadingMore,
-    error,
-    hasMore,
-    loadMore,
-    reset,
-  } = useInfiniteScroll({
-    language: selectedLanguage,
-    pageSize: 20,
-    initialLoad: 20
-  })
+  // No longer need local infinite scroll - using data from parent
 
   // Calculate counts for each filter
   const filterCounts = useMemo(() => {
@@ -92,12 +96,11 @@ export function FilterSidebar({
     }
   }, [songs, allSongsCount, favoritesCount, recentCount, playlistsCount])
 
-  // Reset infinite scroll when filter mode changes
+  // Handle filter mode changes without resetting data
   const handleFilterModeChange = (mode: FilterMode) => {
     onFilterModeChange(mode)
-    if (mode === 'all') {
-      reset() // Reset infinite scroll for all songs
-    }
+    // Don't reset infinite scroll when switching filters - use existing data
+    // Only reset when language changes (handled by the parent component)
   }
 
   const filterOptions = [
@@ -236,7 +239,7 @@ export function FilterSidebar({
           {filterOptions.map((filter) => (
             <Chip
               key={filter.id}
-              label={`${filter.label} (${filter.count})`}
+              label={filter.id === 'all' ? filter.label : `${filter.label} (${filter.count})`}
               icon={filter.icon}
               onClick={() => handleFilterModeChange(filter.id)}
               variant={filterMode === filter.id ? "filled" : "outlined"}
@@ -272,23 +275,25 @@ export function FilterSidebar({
       <Box sx={{ flex: 1, overflow: "hidden" }}>
         {filterMode === 'all' ? (
           <InfiniteSongList
-            songs={infiniteSongs}
+            songs={allSongs || []}
             onSelectSong={onSelectSong}
-            selectedSongId={undefined}
+            selectedSongId={selectedSongId}
             selectedLanguage={selectedLanguage}
             viewMode="all-songs"
             history={history}
-            onLoadMore={loadMore}
-            hasMore={hasMore}
-            loading={loading}
-            loadingMore={loadingMore}
-            error={error}
+            onLoadMore={onLoadMoreAllSongs || (() => {})}
+            hasMore={allSongsHasMore || false}
+            loading={allSongsLoading || false}
+            loadingMore={allSongsLoadingMore || false}
+            error={allSongsError}
+            onToggleFavorite={onToggleFavorite}
+            isFavorite={isFavorite}
           />
         ) : (
           <InfiniteSongList
             songs={songs}
             onSelectSong={onSelectSong}
-            selectedSongId={undefined}
+            selectedSongId={selectedSongId}
             selectedLanguage={selectedLanguage}
             viewMode={filterMode}
             history={history}
@@ -297,6 +302,8 @@ export function FilterSidebar({
             loading={false}
             loadingMore={false}
             error={null}
+            onToggleFavorite={onToggleFavorite}
+            isFavorite={isFavorite}
           />
         )}
       </Box>

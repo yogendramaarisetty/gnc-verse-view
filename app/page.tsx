@@ -61,15 +61,22 @@ export default function Home() {
   // Language counts
   const { languageCounts, totalCount, loading: countsLoading } = useLanguageCounts()
 
-  // Infinite scroll for all songs
+  // Infinite scroll for all songs (only when not in offline mode)
   const { 
-    songs: allSongs, 
+    songs: onlineAllSongs, 
     loading: allSongsLoading, 
+    loadingMore: allSongsLoadingMore,
     error: allSongsError, 
     hasMore, 
     loadMore, 
     reset: resetAllSongs 
-  } = useInfiniteSongs()
+  } = useInfiniteSongs(selectedLanguage)
+  
+  // Use online songs
+  const allSongs = onlineAllSongs
+  const allSongsLoadingState = allSongsLoading
+  const allSongsLoadingMoreState = allSongsLoadingMore
+  const allSongsErrorState = allSongsError
 
   // Wrapper functions to handle async operations
   const handleToggleFavorite = async (songId: string) => {
@@ -81,8 +88,14 @@ export default function Home() {
   }
 
   const handleToggleFavoriteNoArgs = async () => {
-    // This will be called from components that don't have songId context
-    console.warn('handleToggleFavoriteNoArgs called without songId')
+    // This will be called from SongViewer component
+    if (selectedSong) {
+      try {
+        await toggleFavoriteStatus(selectedSong.id)
+      } catch (error) {
+        console.error('Failed to toggle favorite:', error)
+      }
+    }
   }
 
   const handleCheckIsFavorite = (songId: string) => {
@@ -128,7 +141,12 @@ export default function Home() {
     trending: viewMode === "trending",
     limit: 50,
   }
-  const { songs, loading: songsLoading, error: songsError } = useSongs(songsOptions)
+  const { songs: onlineSongs, loading: songsLoading, error: songsError } = useSongs(songsOptions)
+  
+  // Use online songs
+  const songs = onlineSongs
+  const songsLoadingState = songsLoading
+  const songsErrorState = songsError
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen)
@@ -424,6 +442,12 @@ export default function Home() {
               filterMode={filterMode}
               onFilterModeChange={handleFilterModeChange}
               songs={songs}
+              allSongs={allSongs}
+              allSongsLoading={allSongsLoadingState}
+              allSongsLoadingMore={allSongsLoadingMoreState}
+              allSongsError={allSongsErrorState}
+              allSongsHasMore={hasMore}
+              onLoadMoreAllSongs={loadMore}
               history={history}
               favoritesCount={favorites.length}
               recentCount={history.length}
@@ -431,6 +455,9 @@ export default function Home() {
               allSongsCount={languageCounts?.[selectedLanguage] || 0}
               onSelectSong={handleSelectSong}
               onShowAllSongs={handleShowAllSongs}
+              selectedSongId={selectedSong?.id}
+              onToggleFavorite={handleToggleFavorite}
+              isFavorite={(songId: string) => favorites.some(fav => fav.id === songId)}
             />
           </Drawer>
         ) : (
@@ -454,6 +481,12 @@ export default function Home() {
               filterMode={filterMode}
               onFilterModeChange={handleFilterModeChange}
               songs={songs}
+              allSongs={allSongs}
+              allSongsLoading={allSongsLoadingState}
+              allSongsLoadingMore={allSongsLoadingMoreState}
+              allSongsError={allSongsErrorState}
+              allSongsHasMore={hasMore}
+              onLoadMoreAllSongs={loadMore}
               history={history}
               favoritesCount={favorites.length}
               recentCount={history.length}
@@ -461,6 +494,9 @@ export default function Home() {
               allSongsCount={languageCounts?.[selectedLanguage] || 0}
               onSelectSong={handleSelectSong}
               onShowAllSongs={handleShowAllSongs}
+              selectedSongId={selectedSong?.id}
+              onToggleFavorite={handleToggleFavorite}
+              isFavorite={(songId: string) => favorites.some(fav => fav.id === songId)}
             />
           </Drawer>
         )}
@@ -488,7 +524,7 @@ export default function Home() {
             onPlaylistAdd={handleAddToPlaylistSingleArg}
             onPlaylistRemove={handleRemoveFromPlaylistSingleArg}
             playlists={playlists}
-            isFavorite={false}
+            isFavorite={selectedSong ? favorites.some(fav => fav.id === selectedSong.id) : false}
           />
         ) : (
           <Box

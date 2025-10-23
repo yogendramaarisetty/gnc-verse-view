@@ -46,6 +46,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
   const [showDropdown, setShowDropdown] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   
+  // Use backend search
   const {
     query,
     results,
@@ -353,11 +354,15 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
               {hasResults && (
                 <List dense disablePadding>
                   {getTopResults(10)
-                    .filter(result => result && result.song) // Filter out invalid results
-                    .map((result, index) => (
-                    <ListItem key={result.song?.id || `result-${index}`} disablePadding>
+                    .filter(result => result && (result as any).song)
+                    .map((result, index) => {
+                      // Backend search returns BackendSearchResult objects
+                      const song = (result as any).song
+                      
+                      return (
+                    <ListItem key={song?.id || `result-${index}`} disablePadding>
                       <ListItemButton
-                        onClick={() => result.song && handleSelectSong(result.song)}
+                        onClick={() => song && handleSelectSong(song)}
                         sx={{
                           py: 1.5,
                           px: 2,
@@ -369,7 +374,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                         <ListItemAvatar>
                           <Box
                             sx={{
-                              width: 50,
+                              width: 40,
                               height: 40,
                               borderRadius: 1,
                               bgcolor: "rgb(38, 38, 38)",
@@ -378,7 +383,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                               justifyContent: 'center',
                               position: 'relative',
                               overflow: 'hidden',
-                              backgroundImage: result.song?.thumbnail ? `url(${result.song.thumbnail})` : 'none',
+                              backgroundImage: song?.thumbnail ? `url(${song.thumbnail})` : 'none',
                               backgroundSize: 'cover',
                               backgroundPosition: 'center',
                               '&:hover': {
@@ -391,51 +396,36 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                               sx={{ 
                                 color: "rgb(163, 163, 163)", 
                                 fontSize: 20,
-                                display: result.song?.thumbnail ? 'none' : 'block'
+                                display: song?.thumbnail ? 'none' : 'block'
                               }} 
                             />
                           </Box>
                         </ListItemAvatar>
                         <ListItemText
                           primary={
-                            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, mb: 0.5 }}>
-                              {/* Main Title */}
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                <Typography 
-                                  variant="body2" 
-                                  sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}
-                                  dangerouslySetInnerHTML={{ 
-                                    __html: result.highlights?.title || result.song?.title || 'Unknown Title'
-                                  }}
-                                />
-                                <Chip
-                                  label={getMatchQuality(result.score).label}
-                                  size="small"
-                                  color={getMatchQuality(result.score).color as any}
-                                  variant="outlined"
-                                  sx={{
-                                    height: 18,
-                                    fontSize: "0.65rem",
-                                    fontWeight: 600,
-                                  }}
-                                />
-                                {result.song?.trending && (
-                                  <TrendingUpIcon sx={{ fontSize: "0.8rem", color: "rgb(59, 130, 246)" }} />
-                                )}
-                              </Box>
-                              
-                              {/* Transliterated Title */}
-                              {result.song?.titleTransliteration && (
-                                <Typography 
-                                  variant="caption" 
-                                  sx={{ 
-                                    color: "rgb(163, 163, 163)", 
-                                    fontStyle: "italic",
-                                    ml: 0.5
-                                  }}
-                                >
-                                  {result.song.titleTransliteration}
-                                </Typography>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                              <Typography 
+                                variant="body2" 
+                                sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}
+                                dangerouslySetInnerHTML={{ 
+                                  __html: (result as any).song?.titleTransliteration 
+                                    ? `${(result as any).highlights?.title || (result as any).song?.title || 'Unknown Title'} | ${(result as any).song.titleTransliteration}`
+                                    : (result as any).highlights?.title || (result as any).song?.title || 'Unknown Title'
+                                }}
+                              />
+                              <Chip
+                                label={getMatchQuality((result as any).score).label}
+                                size="small"
+                                color={getMatchQuality((result as any).score).color as any}
+                                variant="outlined"
+                                sx={{
+                                  height: 18,
+                                  fontSize: "0.65rem",
+                                  fontWeight: 600,
+                                }}
+                              />
+                              {(result as any).song?.trending && (
+                                <TrendingUpIcon sx={{ fontSize: "0.8rem", color: "rgb(59, 130, 246)" }} />
                               )}
                             </Box>
                           }
@@ -445,42 +435,15 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                               variant="caption" 
                               sx={{ color: "rgb(163, 163, 163)" }}
                               dangerouslySetInnerHTML={{ 
-                                __html: result.highlights?.artist || result.song?.artist?.name || 'Unknown Artist'
+                                __html: `${(result as any).highlights?.artist || (result as any).song?.artist?.name || 'Unknown Artist'} • ${formatNumber((result as any).song?.viewCount || 0)} views`
                               }}
                             />
                           }
                         />
-                        
-                        {/* Additional info outside ListItemText to avoid hydration issues */}
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 9, mt: 0.5, flexWrap: "wrap" }}>
-                          <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                            •
-                          </Typography>
-                          <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                            {result.song?.language || 'Unknown'}
-                          </Typography>
-                          {result.song?.hasVideo && (
-                            <>
-                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                                •
-                              </Typography>
-                              <ThumbUpIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
-                              <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                                {formatNumber(result.song?.youtubeLikes || 0)}
-                              </Typography>
-                            </>
-                          )}
-                          <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                            •
-                          </Typography>
-                          <VisibilityIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
-                          <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                            {formatNumber(result.song?.viewCount || 0)}
-                          </Typography>
-                        </Box>
                       </ListItemButton>
                     </ListItem>
-                  ))}
+                      )
+                    })}
                 </List>
               )}
 

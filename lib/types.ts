@@ -14,6 +14,7 @@ export interface Song {
   language: "Malayalam" | "Hindi" | "Tamil" | "Telugu" | "Bengali" | "Kannada" | "English"
   tags: string[]
   lyrics: string[]
+  englishLyrics?: string[]
   chords?: string[]
   originalKey: string
   thumbnail: string
@@ -59,6 +60,7 @@ export interface DatabaseSong {
   language: string
   tags: string[]
   lyrics: string[]
+  english_lyrics?: string[]
   chords?: string[]
   original_key: string
   thumbnail_url: string

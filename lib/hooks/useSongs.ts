@@ -516,7 +516,7 @@ export function useLanguageCounts() {
 }
 
 // Hook for infinite scroll loading of all songs
-export function useInfiniteSongs() {
+export function useInfiniteSongs(language?: string) {
   const [songs, setSongs] = useState<Song[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -524,6 +524,7 @@ export function useInfiniteSongs() {
   const [hasMore, setHasMore] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
+  const [hasInitialized, setHasInitialized] = useState(false)
 
   const ITEMS_PER_PAGE = 20
 
@@ -532,6 +533,7 @@ export function useInfiniteSongs() {
       setSongs([])
       setCurrentPage(0)
       setHasMore(true)
+      setHasInitialized(true)
     }
 
     const page = reset ? 0 : currentPage
@@ -551,12 +553,18 @@ export function useInfiniteSongs() {
       if (reset) {
         setSongs(newSongs)
         setTotalCount(data.totalCount || 0)
+        setCurrentPage(1) // Set to 1 after loading first page
       } else {
-        setSongs(prev => [...prev, ...newSongs])
+        // Deduplicate songs by ID to prevent duplicates
+        setSongs(prev => {
+          const existingIds = new Set(prev.map(song => song.id))
+          const uniqueNewSongs = newSongs.filter(song => !existingIds.has(song.id))
+          return [...prev, ...uniqueNewSongs]
+        })
+        setCurrentPage(prev => prev + 1) // Increment page
       }
 
       setHasMore(newSongs.length === ITEMS_PER_PAGE)
-      setCurrentPage(page + 1)
 
       // Add to cache
       songCache.addSongs(newSongs)
@@ -571,13 +579,21 @@ export function useInfiniteSongs() {
 
   const loadMore = useCallback(() => {
     if (!loadingMore && hasMore) {
-      loadSongs()
+      loadSongs(language || 'all')
     }
-  }, [loadingMore, hasMore, loadSongs])
+  }, [loadingMore, hasMore, loadSongs, language])
 
   const reset = useCallback((language?: string) => {
+    setHasInitialized(false)
     loadSongs(language, true)
   }, [loadSongs])
+
+  // Initialize with default load (only once)
+  useEffect(() => {
+    if (!hasInitialized && !loading) {
+      loadSongs(language || 'all', true)
+    }
+  }, [hasInitialized, loading, loadSongs, language])
 
   return {
     songs,

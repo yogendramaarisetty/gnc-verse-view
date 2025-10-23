@@ -160,6 +160,7 @@ export class DataReconciliationService {
     const videoId = this.extractYouTubeId(song.youtube_link)
     const thumbnailUrl = videoId ? this.generateThumbnailUrl(videoId) : null
     const lyrics = this.parseLyrics(song.telugu_lyrics || song.english_lyrics)
+    const englishLyrics = song.english_lyrics ? this.parseEnglishLyrics(song.english_lyrics) : null
     const tags = song.category ? [song.category] : []
 
     const { data, error } = await this.supabase
@@ -171,6 +172,7 @@ export class DataReconciliationService {
         language: language,
         tags: tags,
         lyrics: lyrics,
+        english_lyrics: englishLyrics,
         chords: null,
         original_key: null,
         thumbnail_url: thumbnailUrl,
@@ -194,6 +196,7 @@ export class DataReconciliationService {
     const videoId = this.extractYouTubeId(song.youtube_link)
     const thumbnailUrl = videoId ? this.generateThumbnailUrl(videoId) : null
     const lyrics = this.parseLyrics(song.telugu_lyrics || song.english_lyrics)
+    const englishLyrics = song.english_lyrics ? this.parseEnglishLyrics(song.english_lyrics) : null
     const tags = song.category ? [song.category] : []
 
     const { error } = await this.supabase
@@ -204,6 +207,7 @@ export class DataReconciliationService {
         language: language,
         tags: tags,
         lyrics: lyrics,
+        english_lyrics: englishLyrics,
         thumbnail_url: thumbnailUrl,
         has_video: !!videoId,
         video_url: song.youtube_link || null,
@@ -235,7 +239,7 @@ export class DataReconciliationService {
     }
 
     // Find orphaned songs
-    const orphanedSongs = dbSongs.filter(dbSong => {
+    const orphanedSongs = dbSongs.filter((dbSong: any) => {
       const songKey = `${dbSong.title}_${dbSong.artist_id}`
       return !jsonSongKeys.has(songKey)
     })
@@ -305,7 +309,46 @@ export class DataReconciliationService {
     return lyrics
       .split('\n')
       .map(line => line.trim())
-      .filter(line => line.length > 0)
+      .filter(line => {
+        // Filter out empty lines and common headers
+        if (line.length === 0) return false
+        
+        // Filter out common headers that appear in the data
+        const headersToFilter = [
+          'Telugu Lyrics',
+          'English Lyrics', 
+          'Audio',
+          'Telugu LyricsEnglish LyricsAudio',
+          'Telugu LyricsEnglish Lyrics',
+          'English LyricsAudio'
+        ]
+        
+        return !headersToFilter.includes(line)
+      })
+  }
+
+  private parseEnglishLyrics(lyrics: string): string[] {
+    const lines = lyrics
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0) // Remove empty lines
+    
+    // Skip the first 2 lines for English lyrics (usually headers)
+    const contentLines = lines.slice(2)
+    
+    return contentLines.filter(line => {
+      // Filter out common headers that appear in the data
+      const headersToFilter = [
+        'Telugu Lyrics',
+        'English Lyrics', 
+        'Audio',
+        'Telugu LyricsEnglish LyricsAudio',
+        'Telugu LyricsEnglish Lyrics',
+        'English LyricsAudio'
+      ]
+      
+      return !headersToFilter.includes(line)
+    })
   }
 
   private extractYouTubeId(url: string): string | null {

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     // Apply filters
-    if (language) {
+    if (language && language !== 'all') {
       query = query.eq('language', language)
     }
 
@@ -82,6 +82,7 @@ export async function GET(request: NextRequest) {
       language: song.language,
       tags: song.tags || [],
       lyrics: song.lyrics || [],
+      englishLyrics: song.english_lyrics || [],
       chords: song.chords || [],
       originalKey: song.original_key,
       thumbnail: song.thumbnail_url,
@@ -181,6 +182,7 @@ export async function POST(request: NextRequest) {
       language: song.language,
       tags: song.tags || [],
       lyrics: song.lyrics || [],
+      englishLyrics: song.english_lyrics || [],
       chords: song.chords || [],
       originalKey: song.original_key,
       thumbnail: song.thumbnail_url,

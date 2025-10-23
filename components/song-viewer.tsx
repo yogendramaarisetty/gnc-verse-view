@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   Box,
   Typography,
@@ -18,6 +18,8 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  Tabs,
+  Tab,
 } from "@mui/material"
 import StarIcon from "@mui/icons-material/Star"
 import StarBorderIcon from "@mui/icons-material/StarBorder"
@@ -65,31 +67,40 @@ export function SongViewer({
   const [showChords, setShowChords] = useState(true)
   const [playlistMenuAnchor, setPlaylistMenuAnchor] = useState<null | HTMLElement>(null)
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false)
+  const [lyricsTab, setLyricsTab] = useState(0) // 0: Telugu, 1: English
 
   useEffect(() => {
     if (user) {
-      // Use prop value if available (from authenticated context)
+      // For authenticated users, use the prop value from parent
       setIsFavorite(propIsFavorite ?? false)
     } else {
       // Use local storage for anonymous users
       setIsFavorite(storage.isFavorite(song.id))
     }
+    
     setFontSize(storage.getFontSize())
     setTranspose(0)
   }, [song.id, user, propIsFavorite])
 
 
-  const handleToggleFavorite = () => {
+  const handleToggleFavorite = async () => {
     if (!user) {
       // Redirect to login if not authenticated
       router.push('/login')
       return
     }
     
+    // Let the parent component handle the API call to avoid double toggling
     if (onFavoritesChange) {
-      onFavoritesChange()
+      try {
+        await onFavoritesChange()
+        // Don't update local state - let the parent's prop update handle it
+      } catch (error) {
+        console.error('Failed to toggle favorite:', error)
+        console.warn('Failed to update favorite in database. Please check your connection and try again.')
+      }
     } else {
-      // Fallback to local storage
+      // Fallback to local storage for anonymous users or if no callback provided
       const newState = storage.toggleFavorite(song.id)
       setIsFavorite(newState)
     }
@@ -134,6 +145,36 @@ export function SongViewer({
   // Use prop playlists if available, otherwise fallback to local storage
   const availablePlaylists = playlists.length > 0 ? playlists : storage.getPlaylists()
   const transposedChords = song.chords ? transposeChords(song.chords, transpose) : []
+  
+  // Determine which lyrics to show and clean them
+  const currentLyrics = useMemo(() => {
+    if (lyricsTab === 0) {
+      return song.lyrics || []
+    } else {
+      // Clean English lyrics by filtering out headers
+      return (song.englishLyrics || []).filter(line => {
+        if (!line || line.trim().length === 0) return false
+        
+        // Filter out common headers that appear in the data
+        const headersToFilter = [
+          'Telugu Lyrics',
+          'English Lyrics', 
+          'Audio',
+          'Telugu LyricsEnglish LyricsAudio',
+          'Telugu LyricsEnglish Lyrics',
+          'English LyricsAudio'
+        ]
+        
+        // Only filter out exact matches, not lines that start with these words
+        const isExactHeader = headersToFilter.includes(line.trim())
+        
+        return !isExactHeader
+      })
+    }
+  }, [lyricsTab, song.englishLyrics, song.lyrics])
+  
+  const currentChords = song.chords ? transposeChords(song.chords, transpose) : []
+  
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
@@ -548,6 +589,7 @@ export function SongViewer({
             </ButtonGroup>
           </Stack>
 
+
           {/* Transpose */}
           {song.chords && (
             <>
@@ -627,37 +669,75 @@ export function SongViewer({
 
       {/* Lyrics */}
       <Box sx={{ flex: 1, overflow: "auto", p: 3 }}>
-        <Stack spacing={3}>
-          {song.lyrics.map((line, index) => (
-            <Box key={index}>
-              {showChords && song.chords && transposedChords[index] && (
+        <Box>
+          <Tabs
+            value={lyricsTab}
+            onChange={(_, newValue) => setLyricsTab(newValue)}
+            sx={{
+              borderBottom: 1,
+              borderColor: 'rgb(38, 38, 38)',
+              mb: 2,
+              '& .MuiTab-root': {
+                color: 'rgb(163, 163, 163)',
+                textTransform: 'none',
+                fontWeight: 500,
+                '&.Mui-selected': {
+                  color: 'rgb(59, 130, 246)',
+                },
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: 'rgb(59, 130, 246)',
+              },
+            }}
+          >
+            <Tab label="Telugu" />
+            <Tab label="English" />
+          </Tabs>
+          <Stack spacing={3}>
+            {currentLyrics.length > 0 ? currentLyrics.map((line, index) => (
+              <Box key={index}>
+                {showChords && song.chords && currentChords[index] && (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "rgb(59, 130, 246)",
+                      fontFamily: "monospace",
+                      fontWeight: 600,
+                      mb: 0.5,
+                      fontSize: `${fontSize - 2}px`,
+                    }}
+                  >
+                    {currentChords[index]}
+                  </Typography>
+                )}
                 <Typography
-                  variant="body2"
+                  variant="body1"
                   sx={{
-                    color: "rgb(59, 130, 246)",
-                    fontFamily: "monospace",
-                    fontWeight: 600,
-                    mb: 0.5,
-                    fontSize: `${fontSize - 2}px`,
+                    color: line ? "rgb(250, 250, 250)" : "transparent",
+                    fontSize: `${fontSize}px`,
+                    lineHeight: 1.8,
+                    whiteSpace: "pre-wrap",
                   }}
                 >
-                  {transposedChords[index]}
+                  {line || "\u00A0"}
                 </Typography>
-              )}
+              </Box>
+            )) : (
               <Typography
                 variant="body1"
                 sx={{
-                  color: line ? "rgb(250, 250, 250)" : "transparent",
+                  color: "rgb(163, 163, 163)",
                   fontSize: `${fontSize}px`,
                   lineHeight: 1.8,
-                  whiteSpace: "pre-wrap",
+                  textAlign: "center",
+                  py: 4,
                 }}
               >
-                {line || "\u00A0"}
+                {lyricsTab === 0 ? "No Telugu lyrics available" : "No English lyrics available"}
               </Typography>
-            </Box>
-          ))}
-        </Stack>
+            )}
+          </Stack>
+        </Box>
       </Box>
 
       {/* Playlist Menu */}

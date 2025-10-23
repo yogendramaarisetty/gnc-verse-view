@@ -320,7 +320,7 @@ export function EnhancedSongList({
                     alt={song.title}
                     sx={{
                       width: 40,
-                      height: 32,
+                      height: 40,
                       borderRadius: 1,
                       objectFit: "cover",
                       flexShrink: 0,
@@ -328,63 +328,15 @@ export function EnhancedSongList({
                   />
                   <ListItemText
                     primary={
-                      <>
-                        <Typography component="span" variant="body2" sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}>
-                          {song.title}
-                        </Typography>
+                      <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}>
+                        {song.titleTransliteration ? `${song.title} | ${song.titleTransliteration}` : song.title}
                         {song.trending && <TrendingUpIcon sx={{ fontSize: "0.9rem", color: "rgb(239, 68, 68)", verticalAlign: "middle", ml: 0.5 }} />}
-                      </>
+                      </Typography>
                     }
                     secondary={
-                      <>
-                        {song.titleTransliteration && (
-                          <>
-                            <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem", display: "block", mb: 0.25 }}>
-                              {song.titleTransliteration}
-                            </Typography>
-                          </>
-                        )}
-                        <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem", display: "inline-block", mr: 0.5 }}>
-                          {song.artist.name}
-                        </Typography>
-                        <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem", display: "inline-block", mx: 0.5 }}>
-                          •
-                        </Typography>
-                        <Chip
-                          label={song.originalKey}
-                          size="small"
-                          variant="outlined"
-                          component="span"
-                          sx={{
-                            height: "16px",
-                            fontSize: "0.65rem",
-                            bgcolor: "rgba(59, 130, 246, 0.05)",
-                            borderColor: "rgb(59, 130, 246)",
-                            color: "rgb(59, 130, 246)",
-                            fontWeight: 600,
-                            "& .MuiChip-label": { px: 0.75 },
-                            display: "inline-flex",
-                            verticalAlign: "middle",
-                          }}
-                        />
-                        <br />
-                        {song.hasVideo && (
-                          <>
-                            <PlayArrowIcon sx={{ fontSize: "0.75rem", color: "rgb(163, 163, 163)", verticalAlign: "middle", mr: 0.25 }} />
-                            <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.7rem", mr: 1 }}>
-                              {formatNumber(song.youtubeViews)}
-                            </Typography>
-                          </>
-                        )}
-                        <ThumbUpIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)", verticalAlign: "middle", mr: 0.25 }} />
-                        <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.7rem", mr: 1 }}>
-                          {formatNumber(song.youtubeLikes)}
-                        </Typography>
-                        <VisibilityIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)", verticalAlign: "middle", mr: 0.25 }} />
-                        <Typography component="span" variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.7rem" }}>
-                          {formatNumber(song.viewCount)}
-                        </Typography>
-                      </>
+                      <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem" }}>
+                        {song.artist.name} • {formatNumber(song.viewCount)} views
+                      </Typography>
                     }
                   />
                 </ListItemButton>
