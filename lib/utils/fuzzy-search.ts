@@ -41,6 +41,27 @@ function levenshteinDistance(str1: string, str2: string): number {
 }
 
 /**
+ * Calculate literal match score with priority system
+ */
+function calculateLiteralMatchScore(query: string, text: string): number {
+  if (!query || !text) return 0
+  
+  const queryLower = query.toLowerCase().trim()
+  const textLower = text.toLowerCase().trim()
+  
+  // Exact match gets highest score
+  if (textLower === queryLower) return 1000
+  
+  // Starts with query gets high score
+  if (textLower.startsWith(queryLower)) return 900
+  
+  // Contains query gets medium-high score
+  if (textLower.includes(queryLower)) return 800
+  
+  return 0
+}
+
+/**
  * Calculate fuzzy match score between query and text
  */
 function calculateFuzzyScore(query: string, text: string): number {
@@ -49,14 +70,9 @@ function calculateFuzzyScore(query: string, text: string): number {
   const queryLower = query.toLowerCase().trim()
   const textLower = text.toLowerCase().trim()
   
-  // Exact match gets highest score
-  if (textLower === queryLower) return 100
-  
-  // Starts with query gets high score
-  if (textLower.startsWith(queryLower)) return 90
-  
-  // Contains query gets medium-high score
-  if (textLower.includes(queryLower)) return 80
+  // Check for literal matches first (highest priority)
+  const literalScore = calculateLiteralMatchScore(query, text)
+  if (literalScore > 0) return literalScore
   
   // Word boundary match gets medium score
   const words = textLower.split(/\s+/)
@@ -130,10 +146,10 @@ export function fuzzySearchSongs(
       }
     }
     
-    // Calculate weighted total score
+    // Calculate weighted total score with new priority system
     const weights = {
-      title: 0.4,           // Title matches are most important
-      titleTransliteration: 0.3, // Transliteration is important
+      title: 0.2,           // Title matches are secondary
+      titleTransliteration: 0.5, // Transliteration is MOST important
       artist: 0.2,          // Artist matches are important
       lyrics: 0.05,         // Lyrics matches are less important
       tags: 0.05            // Tag matches are less important
@@ -146,8 +162,8 @@ export function fuzzySearchSongs(
       (matches.lyrics * weights.lyrics) +
       (matches.tags * weights.tags)
     
-    // Only include songs with meaningful matches
-    if (totalScore > 10) {
+    // Only include songs with meaningful matches - prioritize literal matches
+    if (totalScore > 10 || matches.titleTransliteration >= 800) {
       results.push({
         song,
         score: totalScore,

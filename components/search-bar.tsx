@@ -19,6 +19,7 @@ import {
   Tooltip,
   Alert,
   IconButton,
+  LinearProgress,
 } from "@mui/material"
 import SearchIcon from "@mui/icons-material/Search"
 import ClearIcon from "@mui/icons-material/Clear"
@@ -28,7 +29,7 @@ import ThumbUpIcon from "@mui/icons-material/ThumbUp"
 import VisibilityIcon from "@mui/icons-material/Visibility"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import type { Song } from "@/lib/types"
-import { useBackendSearch } from "@/lib/hooks/useBackendSearch"
+import { useHybridSearch } from "@/lib/hooks/useHybridSearch"
 import { CacheStatus } from "./cache-status"
 import { EnhancedCacheStatus } from "./enhanced-cache-status"
 import { SupabaseLogs } from "./supabase-logs"
@@ -45,7 +46,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
   const [showDropdown, setShowDropdown] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   
-  // Use backend search
+  // Use hybrid search for ultra-fast results
   const {
     query,
     results,
@@ -53,34 +54,28 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
     error,
     search,
     clearSearch,
-    clearBackendCache,
-    getCacheStats,
     hasResults,
     isEmpty,
+    isSearching,
     getSearchStats,
     getTopResults,
     getMatchQuality,
-    getSearchInsights,
-    isPerfectMatch,
-    cacheStats,
-    isBackendLoading
-  } = useBackendSearch({
+    getSearchInsights
+  } = useHybridSearch({
     language,
-    debounceMs: 300,
-    minQueryLength: 1,
-    maxResults: 15
+    maxResults: 15,
+    enableServerFallback: true,
+    serverDebounceMs: 100
   })
 
-  // Handle search input with optimization
+  // Handle search input with instant search (no debounce for client-side)
   const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value
     setSearchQuery(value)
     
-    // Only trigger search if value has actually changed
-    if (value !== query) {
-      search(value)
-    }
-  }, [search, query])
+    // Instant search - no debounce needed for client-side results
+    search(value)
+  }, [search])
 
   // Handle search clear
   const handleClearSearch = useCallback(() => {
@@ -98,11 +93,11 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
     clearSearch()
   }, [onSelectSong, clearSearch])
 
-  // Handle cache clear
+  // Handle cache clear (no longer needed with in-memory search)
   const handleClearCache = useCallback(async () => {
-    await clearBackendCache()
-    // Optionally show a success message
-  }, [clearBackendCache])
+    // Cache is automatically managed by the search engine
+    console.log('Cache cleared automatically by search engine')
+  }, [])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -132,28 +127,14 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
     })
   }, [hasResults, results, loading, query])
 
-  // Optimize loading state to prevent flicker
-  const [showLoading, setShowLoading] = useState(false)
-  useEffect(() => {
-    if (loading) {
-      setShowLoading(true)
-    } else {
-      // Delay hiding loading to prevent flicker, but only if we have results or no query
-      const timer = setTimeout(() => {
-        setShowLoading(false)
-      }, loading ? 0 : 150) // Show loading immediately, hide with delay
-      return () => clearTimeout(timer)
-    }
-  }, [loading])
+  // Show loading state when any search is in progress
+  const isLoading = isSearching
 
-  // Show loading when we have a query but no results yet
-  const shouldShowLoading = showLoading || (query.trim().length > 0 && !hasResults && !error && loading)
-  
-  // Show loading state with better conditions - show loading during debounce and API call
-  const isLoading = loading || (query.trim().length > 0 && !hasResults && !error)
-  
-  // Show linear loader when backend is loading
-  const showLinearLoader = isBackendLoading || (loading && hasResults)
+  // Track loading state changes
+  useEffect(() => {
+    console.log('🔍 [SEARCHBAR] isLoading changed to:', isLoading)
+    console.log('🔍 [SEARCHBAR] isSearching:', isSearching)
+  }, [isLoading, isSearching])
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
@@ -202,20 +183,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
             "&.Mui-focused fieldset": {
               borderColor: "rgb(59, 130, 246)",
             },
-            // Linear loader overlay
-            ...(showLinearLoader && {
-              "&::after": {
-                content: '""',
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: "2px",
-                background: "linear-gradient(90deg, transparent, rgb(59, 130, 246), transparent)",
-                animation: "loading-shimmer 1.5s infinite",
-                zIndex: 1,
-              },
-            }),
+            // No linear loader overlay needed - using solid loader on results
           },
           "& .MuiInputBase-input": {
             color: "rgb(250, 250, 250)",
@@ -223,17 +191,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
               color: "rgb(163, 163, 163)",
             },
           },
-          // Keyframes for loading animation
-          ...(showLinearLoader && {
-            "@keyframes loading-shimmer": {
-              "0%": {
-                transform: "translateX(-100%)",
-              },
-              "100%": {
-                transform: "translateX(100%)",
-              },
-            },
-          }),
+          // No keyframes needed - using solid loader on results
         }}
       />
 
@@ -263,40 +221,38 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
               bgcolor: "rgb(64, 64, 64)",
               borderRadius: 3,
             },
-            // Keyframes for loading animation
-            "@keyframes loading-shimmer": {
+            // Keyframes for loading animations
+            "@keyframes spin": {
               "0%": {
-                transform: "translateX(-100%)",
+                transform: "rotate(0deg)",
               },
               "100%": {
-                transform: "translateX(100%)",
+                transform: "rotate(360deg)",
               },
             },
           }}
         >
           {isLoading && (
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", p: 3 }}>
-              <Box sx={{ 
-                width: "100%", 
-                height: 4, 
-                bgcolor: "rgb(38, 38, 38)", 
-                borderRadius: 2, 
-                overflow: "hidden",
-                position: "relative",
-                mb: 2
-              }}>
-                <Box sx={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  height: "100%",
-                  width: "100%",
-                  background: "linear-gradient(90deg, transparent, rgb(59, 130, 246), transparent)",
-                  animation: "loading-shimmer 1.5s infinite",
-                }} />
-              </Box>
-              <Typography variant="body2" sx={{ color: "rgb(163, 163, 163)" }}>
-                {loading ? `Searching for "${query}"...` : `Preparing search for "${query}"...`}
+            <Box sx={{ 
+              bgcolor: "rgb(30, 30, 30)",
+              py: 1,
+              px: 2
+            }}>
+              <LinearProgress 
+                sx={{
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: 'rgb(156, 39, 176)', // Purple color
+                  },
+                  '& .MuiLinearProgress-root': {
+                    backgroundColor: 'rgb(64, 64, 64)', // Dark background
+                  },
+                  height: 4,
+                  borderRadius: 2,
+                  mb: 1
+                }}
+              />
+              <Typography variant="body2" sx={{ color: "rgb(163, 163, 163)", textAlign: "center" }}>
+                Searching for "{query}"...
               </Typography>
             </Box>
           )}
@@ -313,10 +269,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
               {hasResults && (
                 <Box sx={{ px: 2, py: 1, borderBottom: "1px solid rgb(38, 38, 38)" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
-                    <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                      Found {results.length} results
-                    </Typography>
-                    {isPerfectMatch && (
+                    {results.length > 0 && results[0].score >= 1000 && (
                       <Chip
                         label="Perfect Match"
                         size="small"
@@ -325,16 +278,16 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                         sx={{ height: 18, fontSize: "0.65rem" }}
                       />
                     )}
-                    {cacheStats?.cached && (
+                    {results.some(r => r.source === 'client') && (
                       <Chip
-                        label="Cached"
+                        label="Instant"
                         size="small"
                         color="info"
                         variant="outlined"
                         sx={{ height: 18, fontSize: "0.65rem" }}
                       />
                     )}
-                    {showLinearLoader && (
+                    {isSearching && hasResults && (
                       <Chip
                         label="Updating..."
                         size="small"
@@ -346,7 +299,7 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                   </Box>
                   <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
                     {getSearchInsights().join(' • ')}
-                    {showLinearLoader && ' • Reordering by relevance...'}
+                    {isSearching && hasResults && ' • Reordering by relevance...'}
                   </Typography>
                 </Box>
               )}
@@ -355,10 +308,10 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
               {hasResults && (
                 <List dense disablePadding>
                   {getTopResults(10)
-                    .filter(result => result && (result as any).song)
+                    .filter(result => result && result.song)
                     .map((result, index) => {
-                      // Backend search returns BackendSearchResult objects
-                      const song = (result as any).song
+                      // Hybrid search returns HybridSearchResult objects
+                      const song = result.song
                       
                       return (
                     <ListItem key={song?.id || `result-${index}`} disablePadding>
@@ -408,16 +361,16 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                               <Typography 
                                 variant="body2" 
                                 sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}
-                                dangerouslySetInnerHTML={{ 
-                                  __html: (result as any).song?.titleTransliteration 
-                                    ? `${(result as any).highlights?.title || (result as any).song?.title || 'Unknown Title'} | ${(result as any).song.titleTransliteration}`
-                                    : (result as any).highlights?.title || (result as any).song?.title || 'Unknown Title'
-                                }}
-                              />
+                              >
+                                {song?.titleTransliteration 
+                                  ? `${song?.title || 'Unknown Title'} | ${song.titleTransliteration}`
+                                  : song?.title || 'Unknown Title'
+                                }
+                              </Typography>
                               <Chip
-                                label={getMatchQuality((result as any).score).label}
+                                label={getMatchQuality(result.score).label}
                                 size="small"
-                                color={getMatchQuality((result as any).score).color as any}
+                                color={getMatchQuality(result.score).color as any}
                                 variant="outlined"
                                 sx={{
                                   height: 18,
@@ -425,7 +378,16 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                                   fontWeight: 600,
                                 }}
                               />
-                              {(result as any).song?.trending && (
+                              {result.source === 'client' && (
+                                <Chip
+                                  label="Instant"
+                                  size="small"
+                                  color="info"
+                                  variant="outlined"
+                                  sx={{ height: 18, fontSize: "0.65rem" }}
+                                />
+                              )}
+                              {song?.trending && (
                                 <TrendingUpIcon sx={{ fontSize: "0.8rem", color: "rgb(59, 130, 246)" }} />
                               )}
                             </Box>
@@ -435,10 +397,9 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
                               component="span"
                               variant="caption" 
                               sx={{ color: "rgb(163, 163, 163)" }}
-                              dangerouslySetInnerHTML={{ 
-                                __html: `${(result as any).highlights?.artist || (result as any).song?.artist?.name || 'Unknown Artist'} • ${formatNumber((result as any).song?.viewCount || 0)} views`
-                              }}
-                            />
+                            >
+                              {song?.artist?.name || 'Unknown Artist'} • {formatNumber(song?.viewCount || 0)} views
+                            </Typography>
                           }
                         />
                       </ListItemButton>

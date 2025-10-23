@@ -15,11 +15,9 @@ import FavoriteIcon from "@mui/icons-material/Favorite"
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"
 import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay"
 import FilterListIcon from "@mui/icons-material/FilterList"
-import SearchIcon from "@mui/icons-material/Search"
 import type { Song } from "@/lib/types"
 import type { HistorySong } from "@/lib/api/history"
 import { InfiniteSongList } from "@/components/infinite-song-list"
-import { SearchBar } from "@/components/search-bar"
 
 export type FilterMode = 
   | "all"
@@ -79,7 +77,6 @@ export function FilterSidebar({
   scrollToSongId,
   onScrollComplete,
 }: FilterSidebarProps) {
-  const [showSearch, setShowSearch] = useState(false)
   
   // No longer need local infinite scroll - using data from parent
 
@@ -150,47 +147,20 @@ export function FilterSidebar({
       bgcolor: "rgb(20, 20, 20)",
       borderRight: "1px solid rgb(38, 38, 38)",
     }}>
-      {/* Search Bar */}
+      {/* Filter Header */}
       <Box sx={{ 
         p: 2, 
         borderBottom: "1px solid rgb(38, 38, 38)",
         bgcolor: "rgb(25, 25, 25)",
       }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-          <Typography variant="caption" sx={{ 
-            color: "rgb(163, 163, 163)", 
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            fontWeight: 600,
-            flex: 1,
-          }}>
-            Search & Filter
-          </Typography>
-          <Tooltip title={showSearch ? "Hide search" : "Show search"}>
-            <IconButton
-              size="small"
-              onClick={() => setShowSearch(!showSearch)}
-              sx={{ 
-                color: showSearch ? "rgb(59, 130, 246)" : "rgb(163, 163, 163)",
-                "&:hover": {
-                  bgcolor: "rgb(30, 30, 30)",
-                }
-              }}
-            >
-              <SearchIcon sx={{ fontSize: "1rem" }} />
-            </IconButton>
-          </Tooltip>
-        </Box>
-        
-        {showSearch && (
-          <Box sx={{ mb: 2 }}>
-            <SearchBar 
-              onSelectSong={onSelectSong} 
-              songs={songs}
-              language={selectedLanguage}
-            />
-          </Box>
-        )}
+        <Typography variant="caption" sx={{ 
+          color: "rgb(163, 163, 163)", 
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+          fontWeight: 600,
+        }}>
+          Filter Options
+        </Typography>
       </Box>
 
       {/* Filter Chips - Horizontal Scroll */}

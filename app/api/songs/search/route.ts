@@ -53,6 +53,27 @@ function levenshteinDistance(str1: string, str2: string): number {
 }
 
 /**
+ * Calculate literal match score with priority system
+ */
+function calculateLiteralMatchScore(query: string, text: string): number {
+  if (!query || !text) return 0
+  
+  const queryLower = query.toLowerCase().trim()
+  const textLower = text.toLowerCase().trim()
+  
+  // Exact match gets highest score
+  if (textLower === queryLower) return 1000
+  
+  // Starts with query gets high score
+  if (textLower.startsWith(queryLower)) return 900
+  
+  // Contains query gets medium-high score
+  if (textLower.includes(queryLower)) return 800
+  
+  return 0
+}
+
+/**
  * Calculate fuzzy match score with enhanced logic for transliterated text
  */
 function calculateFuzzyScore(query: string, text: string): number {
@@ -61,14 +82,9 @@ function calculateFuzzyScore(query: string, text: string): number {
   const queryLower = query.toLowerCase().trim()
   const textLower = text.toLowerCase().trim()
   
-  // Exact match gets highest score
-  if (textLower === queryLower) return 100
-  
-  // Starts with query gets high score
-  if (textLower.startsWith(queryLower)) return 90
-  
-  // Contains query gets medium-high score
-  if (textLower.includes(queryLower)) return 80
+  // Check for literal matches first (highest priority)
+  const literalScore = calculateLiteralMatchScore(query, text)
+  if (literalScore > 0) return literalScore
   
   // Enhanced fuzzy matching for transliterated text
   // Handle common transliteration variations
@@ -266,10 +282,10 @@ function performFuzzySearch(songs: any[], query: string, language?: string): Sea
       }
     }
     
-    // Calculate weighted total score
+    // Calculate weighted total score with new priority system
     const weights = {
-      title: 0.4,           // Title matches are most important
-      titleTransliteration: 0.3, // Transliteration is important
+      title: 0.2,           // Title matches are secondary
+      titleTransliteration: 0.5, // Transliteration is MOST important
       artist: 0.2,          // Artist matches are important
       lyrics: 0.05,         // Lyrics matches are less important
       tags: 0.05            // Tag matches are less important
@@ -282,8 +298,8 @@ function performFuzzySearch(songs: any[], query: string, language?: string): Sea
       (matches.lyrics * weights.lyrics) +
       (matches.tags * weights.tags)
     
-    // Only include songs with meaningful matches - reduced threshold for better transliteration matching
-    if (totalScore > 20) {
+    // Only include songs with meaningful matches - prioritize literal matches
+    if (totalScore > 20 || matches.titleTransliteration >= 800) {
       console.log(`Song "${song.title}" (${song.title_transliteration}) scored ${totalScore} for query "${query}"`)
       results.push({
         song: {
@@ -401,53 +417,9 @@ export async function GET(request: NextRequest) {
     // Perform database search with multiple strategies
     let searchResults: any[] = []
     
-    // Strategy 1: Full-text search on title
+    // Strategy 1: Priority search on title_transliteration (most important)
     const startTime1 = Date.now()
     let supabaseQuery1 = supabase
-      .from('songs')
-      .select(`
-        *,
-        artists (
-          id,
-          name,
-          photo_url,
-          total_songs,
-          total_views
-        )
-      `)
-      .textSearch('title', query, {
-        type: 'websearch',
-        config: 'english'
-      })
-      .limit(limit)
-
-    // Apply language filter if provided
-    if (language) {
-      supabaseQuery1 = supabaseQuery1.eq('language', language)
-    }
-
-    const { data: titleResults, error: titleError } = await supabaseQuery1
-    const duration1 = Date.now() - startTime1
-
-    // Log the query
-    supabaseLogger.log({
-      method: 'GET',
-      table: 'songs',
-      operation: 'textSearch',
-      url: `songs.textSearch(title:${query})`,
-      resultCount: titleResults?.length || 0,
-      duration: duration1,
-      status: titleError ? 'error' : 'success',
-      error: titleError?.message
-    })
-
-    if (!titleError && titleResults) {
-      searchResults = titleResults
-    }
-
-    // Strategy 2: Try transliteration search (run in parallel with title search)
-    const startTime2 = Date.now()
-    let supabaseQuery2 = supabase
       .from('songs')
       .select(`
         *,
@@ -467,6 +439,50 @@ export async function GET(request: NextRequest) {
 
     // Apply language filter if provided
     if (language) {
+      supabaseQuery1 = supabaseQuery1.eq('language', language)
+    }
+
+    const { data: titleResults, error: titleError } = await supabaseQuery1
+    const duration1 = Date.now() - startTime1
+
+    // Log the query
+    supabaseLogger.log({
+      method: 'GET',
+      table: 'songs',
+      operation: 'textSearch',
+      url: `songs.textSearch(title_transliteration:${query})`,
+      resultCount: titleResults?.length || 0,
+      duration: duration1,
+      status: titleError ? 'error' : 'success',
+      error: titleError?.message
+    })
+
+    if (!titleError && titleResults) {
+      searchResults = titleResults
+    }
+
+    // Strategy 2: Try title search (secondary priority)
+    const startTime2 = Date.now()
+    let supabaseQuery2 = supabase
+      .from('songs')
+      .select(`
+        *,
+        artists (
+          id,
+          name,
+          photo_url,
+          total_songs,
+          total_views
+        )
+      `)
+      .textSearch('title', query, {
+        type: 'websearch',
+        config: 'english'
+      })
+      .limit(limit)
+
+    // Apply language filter if provided
+    if (language) {
       supabaseQuery2 = supabaseQuery2.eq('language', language)
     }
 
@@ -478,7 +494,7 @@ export async function GET(request: NextRequest) {
       method: 'GET',
       table: 'songs',
       operation: 'textSearch',
-      url: `songs.textSearch(title_transliteration:${query})`,
+      url: `songs.textSearch(title:${query})`,
       resultCount: transliterationResults?.length || 0,
       duration: duration2,
       status: transliterationError ? 'error' : 'success',
