@@ -250,7 +250,8 @@ export function SongViewer({
   const currentChords = song.chords ? transposeChords(song.chords, transpose) : []
   
 
-  const formatNumber = (num: number): string => {
+  const formatNumber = (num: number | undefined | null): string => {
+    if (num === undefined || num === null || isNaN(num)) return '0'
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
     return num.toString()
@@ -493,7 +494,7 @@ export function SongViewer({
                       border: "1px solid rgba(255,255,255,0.2)",
                     }}
                   />
-                  {song.tags.map((tag) => (
+                  {song.tags && song.tags.length > 0 && song.tags.map((tag) => (
                     <Chip
                       key={tag}
                       label={tag}

@@ -68,6 +68,15 @@ export function InfiniteSongList({
   const [sortBy, setSortBy] = useState<'title' | 'artist' | 'views' | 'trending'>('title')
   const [filterBy, setFilterBy] = useState<string>('all')
   const observerTarget = useRef<HTMLDivElement>(null)
+  const initialHistoryRef = useRef<HistorySong[]>([])
+
+  // Capture initial history state to prevent reordering during interaction
+  useEffect(() => {
+    if (history && history.length > 0 && initialHistoryRef.current.length === 0) {
+      initialHistoryRef.current = [...history]
+      console.log('📚 Captured initial history:', initialHistoryRef.current.length, 'items')
+    }
+  }, [history])
 
   // Debug logging
   console.log('🎵 InfiniteSongList props:', {
@@ -199,30 +208,94 @@ export function InfiniteSongList({
       })
     }
 
-    // Disabled history-based sorting to prevent reordering
-    // Sort songs by the specified sort criteria only (no history-based reordering)
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'title':
-          return a.title.localeCompare(b.title)
-        case 'artist':
-          return a.artist.name.localeCompare(b.artist.name)
-        case 'views':
-          return (b.viewCount || 0) - (a.viewCount || 0)
-        case 'trending':
-          return Number(b.trending) - Number(a.trending)
-        default:
-          // Default sorting: trending first, then by view count (descending), then by title (ascending)
-          if (a.trending && !b.trending) return -1
-          if (!a.trending && b.trending) return 1
-          if (a.trending === b.trending) {
-            const viewDiff = (b.viewCount || 0) - (a.viewCount || 0)
-            if (viewDiff !== 0) return viewDiff
+    // Use stable initial history to prevent reordering during interaction
+    const stableHistory = initialHistoryRef.current
+    if (stableHistory && stableHistory.length > 0) {
+      console.log('🔄 Sorting with stable recent songs at top:', {
+        stableHistoryLength: stableHistory.length,
+        stableHistoryIds: stableHistory.map(h => h.id),
+        songCount: filtered.length
+      })
+      
+      // Create a map of recent song IDs with their visit order (lower index = more recent)
+      const recentSongOrder = new Map<string, number>()
+      stableHistory.forEach((historyItem, index) => {
+        recentSongOrder.set(historyItem.id, index)
+      })
+
+      // Sort songs with recent songs first, then by the specified sort criteria
+      filtered.sort((a, b) => {
+        const aIsRecent = recentSongOrder.has(a.id)
+        const bIsRecent = recentSongOrder.has(b.id)
+        
+        console.log(`🔍 Comparing ${a.title} (recent: ${aIsRecent}) vs ${b.title} (recent: ${bIsRecent})`)
+        
+        // If both are recent, sort by visit order (most recent first)
+        if (aIsRecent && bIsRecent) {
+          const aOrder = recentSongOrder.get(a.id) || 0
+          const bOrder = recentSongOrder.get(b.id) || 0
+          console.log(`📊 Both recent: ${a.title} (order: ${aOrder}) vs ${b.title} (order: ${bOrder})`)
+          return aOrder - bOrder
+        }
+        
+        // If only one is recent, prioritize the recent one
+        if (aIsRecent && !bIsRecent) {
+          console.log(`✅ ${a.title} is recent, prioritizing over ${b.title}`)
+          return -1
+        }
+        if (!aIsRecent && bIsRecent) {
+          console.log(`✅ ${b.title} is recent, prioritizing over ${a.title}`)
+          return 1
+        }
+        
+        // If neither is recent, sort by the specified criteria
+        switch (sortBy) {
+          case 'title':
             return a.title.localeCompare(b.title)
-          }
-          return 0
-      }
-    })
+          case 'artist':
+            return a.artist.name.localeCompare(b.artist.name)
+          case 'views':
+            return (b.viewCount || 0) - (a.viewCount || 0)
+          case 'trending':
+            return Number(b.trending) - Number(a.trending)
+          default:
+            // Default sorting: trending first, then by view count (descending), then by title (ascending)
+            if (a.trending && !b.trending) return -1
+            if (!a.trending && b.trending) return 1
+            if (a.trending === b.trending) {
+              const viewDiff = (b.viewCount || 0) - (a.viewCount || 0)
+              if (viewDiff !== 0) return viewDiff
+              return a.title.localeCompare(b.title)
+            }
+            return 0
+        }
+      })
+    } else {
+      console.log('🔄 No history, using standard sorting')
+      // No history, use standard sorting
+      filtered.sort((a, b) => {
+        switch (sortBy) {
+          case 'title':
+            return a.title.localeCompare(b.title)
+          case 'artist':
+            return a.artist.name.localeCompare(b.artist.name)
+          case 'views':
+            return (b.viewCount || 0) - (a.viewCount || 0)
+          case 'trending':
+            return Number(b.trending) - Number(a.trending)
+          default:
+            // Default sorting: trending first, then by view count (descending), then by title (ascending)
+            if (a.trending && !b.trending) return -1
+            if (!a.trending && b.trending) return 1
+            if (a.trending === b.trending) {
+              const viewDiff = (b.viewCount || 0) - (a.viewCount || 0)
+              if (viewDiff !== 0) return viewDiff
+              return a.title.localeCompare(b.title)
+            }
+            return 0
+        }
+      })
+    }
 
     console.log('✅ Final filtered songs:', { 
       filteredCount: filtered.length,
@@ -230,7 +303,7 @@ export function InfiniteSongList({
     })
 
     return filtered
-  }, [songs, searchQuery, viewMode, sortBy, isFavorite]) // Removed history dependency to prevent reordering
+  }, [songs, searchQuery, viewMode, sortBy, isFavorite]) // Removed history dependency to prevent reordering during interaction
 
 
   // Format numbers
@@ -385,26 +458,41 @@ export function InfiniteSongList({
                   <Avatar
                     src={song.thumbnail}
                     sx={{
-                      width: 40,
-                      height: 40,
+                      width: { xs: 36, sm: 40 },
+                      height: { xs: 36, sm: 40 },
                       bgcolor: 'rgb(38, 38, 38)',
                       borderRadius: 1, // Square corners
                     }}
                   >
-                    <PlayArrowIcon sx={{ color: 'rgb(163, 163, 163)', fontSize: 16 }} />
+                    <PlayArrowIcon sx={{ color: 'rgb(163, 163, 163)', fontSize: { xs: 14, sm: 16 } }} />
                   </Avatar>
                 </ListItemAvatar>
                 <ListItemText
                   primary={
-                    <Typography variant="body2" sx={{ color: 'rgb(250, 250, 250)', fontWeight: 500, fontSize: '0.875rem' }}>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        color: 'rgb(250, 250, 250)', 
+                        fontWeight: 500, 
+                        fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                        lineHeight: 1.3
+                      }}
+                    >
                       {song.titleTransliteration ? `${song.title} | ${song.titleTransliteration}` : song.title}
                       {song.trending && (
-                        <TrendingUpIcon sx={{ fontSize: '0.875rem', color: 'rgb(59, 130, 246)', ml: 0.5, verticalAlign: 'middle' }} />
+                        <TrendingUpIcon sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, color: 'rgb(59, 130, 246)', ml: 0.5, verticalAlign: 'middle' }} />
                       )}
                     </Typography>
                   }
                   secondary={
-                    <Typography variant="caption" sx={{ color: 'rgb(163, 163, 163)', fontSize: '0.7rem' }}>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        color: 'rgb(163, 163, 163)', 
+                        fontSize: { xs: '0.65rem', sm: '0.7rem' },
+                        lineHeight: 1.2
+                      }}
+                    >
                       {song.artist.name} • {formatNumber(song.viewCount)} views
                     </Typography>
                   }

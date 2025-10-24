@@ -113,4 +113,23 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     @apply bg-background text-foreground;
   }
+  
+  /* Mobile-specific improvements */
+  @media (max-width: 768px) {
+    /* Improve touch targets */
+    button, [role="button"], .MuiButton-root, .MuiIconButton-root {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* Better scrolling on mobile */
+    * {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Prevent zoom on input focus */
+    input, select, textarea {
+      font-size: 16px;
+    }
+  }
 }

@@ -15,6 +15,7 @@ import {
   CardMedia,
 } from "@mui/material"
 import LanguageIcon from "@mui/icons-material/Language"
+import HomeIcon from "@mui/icons-material/Home"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import FavoriteIcon from "@mui/icons-material/Favorite"
 import HistoryIcon from "@mui/icons-material/History"
@@ -27,6 +28,7 @@ import type { HistorySong } from "@/lib/api/history"
 import { storage } from "@/lib/storage"
 
 export type ViewMode =
+  | "home"
   | "all"
   | "all-songs"
   | "trending"

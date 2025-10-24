@@ -1,14 +1,18 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Box, AppBar, Toolbar, Typography, IconButton, Drawer, useMediaQuery, useTheme, CircularProgress, Stack } from "@mui/material"
+import { Box, AppBar, Toolbar, Typography, IconButton, Drawer, useMediaQuery, useTheme, CircularProgress, Stack, Avatar, Badge } from "@mui/material"
 import MenuIcon from "@mui/icons-material/Menu"
 import MenuBookIcon from "@mui/icons-material/MenuBook"
 import ListIcon from "@mui/icons-material/List"
+import SearchIcon from "@mui/icons-material/Search"
+import CastIcon from "@mui/icons-material/Cast"
+import PlayArrowIcon from "@mui/icons-material/PlayArrow"
 import { UnifiedSidebar } from "@/components/unified-sidebar"
 import { FilterSidebar } from "@/components/filter-sidebar"
 import { SongViewer } from "@/components/song-viewer"
 import { PresentationMode } from "@/components/presentation-mode"
+import { HomePage } from "@/components/home-page"
 import type { ViewMode } from "@/components/language-sidebar"
 import type { FilterMode } from "@/components/filter-sidebar"
 import { SearchBar } from "@/components/search-bar"
@@ -41,7 +45,7 @@ function deduplicateSongs(songs: Song[]): Song[] {
 export default function Home() {
   const [selectedSong, setSelectedSong] = useState<Song | null>(null)
   const [selectedLanguage, setSelectedLanguage] = useState("Telugu")
-  const [viewMode, setViewMode] = useState<ViewMode>("all-songs")
+  const [viewMode, setViewMode] = useState<ViewMode>("home")
   const [filterMode, setFilterMode] = useState<FilterMode>("all")
   const [mobileOpen, setMobileOpen] = useState(false)
   const [presentationMode, setPresentationMode] = useState(false)
@@ -541,117 +545,193 @@ export default function Home() {
 
   return (
     <Box sx={{ display: "flex", height: "100vh", bgcolor: "rgb(10, 10, 10)" }}>
-      {/* App Bar */}
+      {/* YouTube Music Style App Bar */}
       <AppBar
         position="fixed"
         sx={{
-          bgcolor: "rgb(20, 20, 20)",
-          borderBottom: "1px solid rgb(38, 38, 38)",
+          bgcolor: "rgb(15, 15, 15)",
+          borderBottom: "none",
           boxShadow: "none",
-          overflow: "visible",
+          zIndex: 1200,
         }}
       >
         <Toolbar 
-          variant="dense" 
           sx={{ 
-            minHeight: "56px", 
-            gap: { xs: 1, sm: 2 },
-            px: { xs: 1, sm: 2 },
-            overflow: "visible"
+            minHeight: "64px", 
+            px: { xs: 2, sm: 3 },
+            justifyContent: "space-between",
+            alignItems: "center"
           }}
         >
-          {isMobile ? (
-            // Mobile: Just burger menu and search bar
-            <>
-              <IconButton
-                color="inherit"
-                edge="start"
-                onClick={handleDrawerToggle}
-                sx={{ 
-                  mr: 1, 
-                  color: "rgb(250, 250, 250)",
-                  flexShrink: 0
-                }}
-              >
-                <MenuIcon />
-              </IconButton>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <SearchBar 
-                    onSelectSong={handleSelectSongFromSearch} 
-                    songs={combinedSongs}
-                    language={selectedLanguage}
-                  />
-                  <LanguageDropdown 
-                    selectedLanguage={selectedLanguage}
-                    onLanguageChange={handleLanguageChange}
-                    languages={languageOptions}
-                  />
-                </Stack>
-              </Box>
-            </>
-          ) : (
-            // Desktop: Full toolbar
-            <>
-              <Box sx={{ 
-                display: "flex", 
-                alignItems: "center", 
-                gap: 1.5, 
-                flexShrink: 0,
-                minWidth: 0
-              }}>
-                <MenuBookIcon sx={{ color: "rgb(59, 130, 246)", fontSize: "1.5rem" }} />
-                <Typography 
-                  variant="h6" 
-                  noWrap 
-                  component="div" 
-                  sx={{ 
-                    color: "rgb(250, 250, 250)", 
-                    fontWeight: 600
-                  }}
-                >
-                  GNC Worship Tool
-                </Typography>
-              </Box>
-              <Box sx={{ 
-                flex: 1, 
-                display: "flex", 
-                justifyContent: "flex-start", 
-                px: 2,
-                minWidth: 0,
-                ml: { xs: 0, lg: `${SIDEBAR_WIDTH}px` } // Only apply margin on desktop
-              }}>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ width: "100%", maxWidth: "none" }}>
-                  <SearchBar 
-                    onSelectSong={handleSelectSongFromSearch} 
-                    songs={combinedSongs}
-                    language={selectedLanguage}
-                  />
-                  <LanguageDropdown 
-                    selectedLanguage={selectedLanguage}
-                    onLanguageChange={handleLanguageChange}
-                    languages={languageOptions}
-                  />
-                </Stack>
-              </Box>
-              <Box sx={{ 
+          {/* Left Side - Hamburger Menu + Logo */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <IconButton
+              color="inherit"
+              onClick={handleDrawerToggle}
+              sx={{ 
+                color: "rgb(250, 250, 250)",
+                p: 1,
+                "&:hover": {
+                  bgcolor: "rgba(255, 255, 255, 0.1)",
+                }
+              }}
+            >
+              <MenuIcon />
+            </IconButton>
+            
+            {/* App Logo with Play Button */}
+            <Box 
+              sx={{ 
                 display: "flex", 
                 alignItems: "center", 
                 gap: 1,
-                flexShrink: 0
-              }}>
-                {user ? (
-                  <UserMenu user={{
-                    id: user.id,
-                    email: user.email || '',
-                    user_metadata: user.user_metadata
-                  }} />
-                ) : (
-                  <LoginButton />
-                )}
+                cursor: "pointer",
+                "&:hover": {
+                  opacity: 0.8
+                }
+              }}
+              onClick={() => {
+                setViewMode("home")
+                setFilterMode("all")
+                setSelectedSong(null)
+              }}
+            >
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  bgcolor: "rgb(255, 0, 0)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                }}
+              >
+                <PlayArrowIcon 
+                  sx={{ 
+                    color: "white", 
+                    fontSize: "1.2rem",
+                    ml: 0.5
+                  }} 
+                />
               </Box>
-            </>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  color: "rgb(250, 250, 250)", 
+                  fontWeight: 500,
+                  fontSize: "1.25rem",
+                  letterSpacing: "-0.5px"
+                }}
+              >
+                GNC Music
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Center - Search Bar (Desktop only) */}
+          {!isMobile && (
+            <Box sx={{ 
+              flex: 1, 
+              maxWidth: 600,
+              mx: 4,
+              display: "flex",
+              alignItems: "center"
+            }}>
+              <SearchBar 
+                onSelectSong={handleSelectSongFromSearch} 
+                songs={combinedSongs}
+                language={selectedLanguage}
+                onMobileSearchClick={() => {
+                  // This will be handled by the SearchBar component
+                }}
+              />
+            </Box>
           )}
+
+          {/* Right Side - Icons + User */}
+          <Box sx={{ 
+            display: "flex", 
+            alignItems: "center", 
+            gap: 1
+          }}>
+            {/* Mobile Search Icon */}
+            {isMobile && (
+              <IconButton
+                color="inherit"
+                onClick={() => {
+                  // Trigger mobile search overlay
+                  if ((window as any).triggerMobileSearch) {
+                    (window as any).triggerMobileSearch()
+                  }
+                }}
+                sx={{ 
+                  color: "rgb(250, 250, 250)",
+                  p: 1,
+                  "&:hover": {
+                    bgcolor: "rgba(255, 255, 255, 0.1)",
+                  }
+                }}
+              >
+                <SearchIcon />
+              </IconButton>
+            )}
+
+            {/* Language Dropdown (Desktop only) */}
+            {!isMobile && (
+              <LanguageDropdown 
+                selectedLanguage={selectedLanguage}
+                onLanguageChange={handleLanguageChange}
+                languages={languageOptions}
+              />
+            )}
+
+            {/* Cast Icon */}
+            <IconButton
+              color="inherit"
+              sx={{ 
+                color: "rgb(250, 250, 250)",
+                p: 1,
+                "&:hover": {
+                  bgcolor: "rgba(255, 255, 255, 0.1)",
+                }
+              }}
+            >
+              <CastIcon />
+            </IconButton>
+
+            {/* User Profile */}
+            {user ? (
+              <Avatar
+                src={user.user_metadata?.avatar_url || '/placeholder-user.jpg'}
+                sx={{
+                  width: 32,
+                  height: 32,
+                  cursor: "pointer",
+                  "&:hover": {
+                    boxShadow: "0 0 0 2px rgba(255, 255, 255, 0.2)",
+                  }
+                }}
+                onClick={() => {
+                  // Handle user menu click
+                }}
+              />
+            ) : (
+              <IconButton
+                color="inherit"
+                sx={{ 
+                  color: "rgb(250, 250, 250)",
+                  p: 1,
+                  "&:hover": {
+                    bgcolor: "rgba(255, 255, 255, 0.1)",
+                  }
+                }}
+              >
+                <LoginButton />
+              </IconButton>
+            )}
+          </Box>
         </Toolbar>
       </AppBar>
 
@@ -674,11 +754,12 @@ export default function Home() {
             sx={{
               "& .MuiDrawer-paper": {
                 boxSizing: "border-box",
-                width: SIDEBAR_WIDTH,
+                width: "90vw", // Use 90% of viewport width on mobile
+                maxWidth: SIDEBAR_WIDTH, // But don't exceed the desktop width
                 bgcolor: "rgb(20, 20, 20)",
                 borderRight: "1px solid rgb(38, 38, 38)",
-                mt: "56px",
-                height: "calc(100vh - 56px)",
+                mt: "64px",
+                height: "calc(100vh - 64px)",
               },
             }}
           >
@@ -721,8 +802,8 @@ export default function Home() {
                 width: SIDEBAR_WIDTH,
                 bgcolor: "rgb(20, 20, 20)",
                 borderRight: "1px solid rgb(38, 38, 38)",
-                mt: "56px",
-                height: "calc(100vh - 56px)",
+                mt: "64px",
+                height: "calc(100vh - 64px)",
               },
             }}
             open
@@ -761,7 +842,7 @@ export default function Home() {
       </Box>
 
 
-      {/* Main Content - Song Viewer */}
+      {/* Main Content - Song Viewer or Home Page */}
       <Box
         component="main"
         sx={{
@@ -770,8 +851,11 @@ export default function Home() {
             xs: "100%", 
             lg: `calc(100% - ${SIDEBAR_WIDTH}px)` 
           },
-          mt: "56px",
-          height: "calc(100vh - 56px)",
+          mt: "64px", // Updated for new navbar height
+          height: "calc(100vh - 64px)",
+          // Improved mobile padding and layout
+          px: { xs: 1, sm: 2 },
+          py: { xs: 1, sm: 2 },
         }}
       >
         {selectedSong ? (
@@ -784,6 +868,8 @@ export default function Home() {
             playlists={playlists}
             isFavorite={selectedSong ? (favorites.some(fav => fav.id === selectedSong.id) || optimisticFavorites.has(selectedSong.id)) : false}
           />
+        ) : viewMode === "home" ? (
+          <HomePage onSelectSong={handleSelectSongFromSearch} />
         ) : (
           <Box
             sx={{
@@ -793,16 +879,32 @@ export default function Home() {
               justifyContent: "center",
               height: "100%",
               bgcolor: "rgb(20, 20, 20)",
-              px: 2,
+              px: { xs: 3, sm: 4 },
+              py: { xs: 4, sm: 6 },
               textAlign: "center",
             }}
           >
-            <Typography variant="h6" sx={{ color: "rgb(163, 163, 163)", mb: 1 }}>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: "rgb(163, 163, 163)", 
+                     mb: { xs: 2, sm: 1 },
+                     fontSize: { xs: '1.1rem', sm: '1.25rem' }
+              }}
+            >
               Select a song to view
             </Typography>
             {isMobile && (
-              <Typography variant="body2" sx={{ color: "rgb(100, 100, 100)", maxWidth: 300 }}>
-                Tap the list icon in the top bar to browse songs, or use the search bar to find a specific song.
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: "rgb(100, 100, 100)", 
+                  maxWidth: { xs: 280, sm: 300 },
+                  lineHeight: 1.5,
+                  fontSize: { xs: '0.875rem', sm: '0.9rem' }
+                }}
+              >
+                Tap the menu icon in the top bar to browse songs, or use the search bar to find a specific song.
               </Typography>
             )}
           </Box>

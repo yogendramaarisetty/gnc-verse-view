@@ -11,6 +11,7 @@ import {
   ListItemButton,
   ListItemText,
   ListItemAvatar,
+  ListItemIcon,
   Avatar,
   Typography,
   Chip,
@@ -20,6 +21,15 @@ import {
   Alert,
   IconButton,
   LinearProgress,
+  useMediaQuery,
+  useTheme,
+  Slide,
+  Dialog,
+  DialogContent,
+  Stack,
+  Card,
+  CardMedia,
+  CardContent,
 } from "@mui/material"
 import SearchIcon from "@mui/icons-material/Search"
 import ClearIcon from "@mui/icons-material/Clear"
@@ -28,6 +38,8 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow"
 import ThumbUpIcon from "@mui/icons-material/ThumbUp"
 import VisibilityIcon from "@mui/icons-material/Visibility"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
+import ArrowBackIcon from "@mui/icons-material/ArrowBack"
+import DeleteIcon from "@mui/icons-material/Delete"
 import type { Song } from "@/lib/types"
 import { useHybridSearch } from "@/lib/hooks/useHybridSearch"
 import { CacheStatus } from "./cache-status"
@@ -38,13 +50,20 @@ interface SearchBarProps {
   onSelectSong: (song: Song) => void
   songs?: Song[]
   language?: string
+  onMobileSearchClick?: () => void
 }
 
-export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps) {
+export function SearchBar({ onSelectSong, songs = [], language, onMobileSearchClick }: SearchBarProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [isFocused, setIsFocused] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false)
+  const [showMobileSearchOverlay, setShowMobileSearchOverlay] = useState(false)
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([])
   const searchRef = useRef<HTMLDivElement>(null)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   
   // Use hybrid search for ultra-fast results
   const {
@@ -81,7 +100,44 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
   const handleClearSearch = useCallback(() => {
     setSearchQuery("")
     clearSearch()
-  }, [clearSearch])
+    if (isMobile) {
+      setIsMobileSearchExpanded(false)
+    }
+  }, [clearSearch, isMobile])
+
+  // Mobile search handlers
+  const handleMobileSearchClick = useCallback(() => {
+    if (isMobile) {
+      setShowMobileSearchOverlay(true)
+    }
+  }, [isMobile])
+
+  const handleMobileSearchClose = useCallback(() => {
+    if (isMobile) {
+      setShowMobileSearchOverlay(false)
+      setSearchQuery("")
+      setShowDropdown(false)
+      clearSearch()
+    }
+  }, [isMobile, clearSearch])
+
+  const handleMobileSearchBack = useCallback(() => {
+    if (isMobile) {
+      setShowMobileSearchOverlay(false)
+      setSearchQuery("")
+      setShowDropdown(false)
+      clearSearch()
+    }
+  }, [isMobile, clearSearch])
+
+  const handleDeleteSearchHistory = useCallback((queryToDelete: string) => {
+    setSearchHistory(prev => prev.filter(q => q !== queryToDelete))
+  }, [])
+
+  const handleSearchHistoryClick = useCallback((query: string) => {
+    setSearchQuery(query)
+    search(query)
+  }, [search])
 
   // Handle song selection
   const handleSelectSong = useCallback((song: Song) => {
@@ -126,6 +182,53 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
     // Loading state tracking removed for production
   }, [isLoading, isSearching])
 
+  // Load search history from localStorage
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('searchHistory')
+    if (savedHistory) {
+      setSearchHistory(JSON.parse(savedHistory))
+    }
+  }, [])
+
+  // Save search history to localStorage
+  useEffect(() => {
+    if (searchHistory.length > 0) {
+      localStorage.setItem('searchHistory', JSON.stringify(searchHistory))
+    }
+  }, [searchHistory])
+
+  // Generate search suggestions based on songs
+  useEffect(() => {
+    if (songs.length > 0) {
+      const suggestions = [
+        searchQuery,
+        `${searchQuery} song`,
+        `${searchQuery} ${searchQuery}`,
+        `${searchQuery} ${searchQuery} ${searchQuery} nenanta`
+      ].filter(s => s.trim().length > 0)
+      setSearchSuggestions(suggestions)
+    }
+  }, [searchQuery, songs])
+
+  // Add to search history when search is performed
+  useEffect(() => {
+    if (searchQuery.trim() && !searchHistory.includes(searchQuery.trim())) {
+      setSearchHistory(prev => [searchQuery.trim(), ...prev.slice(0, 4)]) // Keep only last 5 searches
+    }
+  }, [searchQuery, searchHistory])
+
+  // Expose mobile search trigger
+  useEffect(() => {
+    if (onMobileSearchClick) {
+      // Store the trigger function globally so the navbar can access it
+      (window as any).triggerMobileSearch = () => {
+        if (isMobile) {
+          setShowMobileSearchOverlay(true)
+        }
+      }
+    }
+  }, [onMobileSearchClick, isMobile])
+
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
@@ -134,59 +237,153 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
 
 
   return (
-    <Box ref={searchRef} sx={{ position: "relative", width: "100%", minWidth: { xs: 200, sm: 300 } }}>
-      <TextField
-        fullWidth
-        placeholder="Search songs, artists, lyrics..."
-        value={searchQuery}
-        onChange={handleSearchChange}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setTimeout(() => setIsFocused(false), 200)}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon sx={{ color: "rgb(163, 163, 163)" }} />
-            </InputAdornment>
-          ),
-          endAdornment: searchQuery && (
-            <InputAdornment position="end">
+    <>
+      <Box ref={searchRef} sx={{ position: "relative", width: "100%", minWidth: { xs: 180, sm: 300 } }}>
+        {isMobile ? (
+          // Mobile: Icon-only interface with expandable search
+          <>
+            {!isMobileSearchExpanded ? (
+              // Mobile: Show only search icon
               <IconButton
-                size="small"
-                onClick={handleClearSearch}
-                sx={{ color: "rgb(163, 163, 163)" }}
+                onClick={handleMobileSearchClick}
+                sx={{
+                  color: "rgb(250, 250, 250)",
+                  p: 1,
+                  "&:hover": {
+                    bgcolor: "rgb(38, 38, 38)",
+                  },
+                }}
               >
-                <ClearIcon />
+                <SearchIcon />
               </IconButton>
-            </InputAdornment>
-          ),
-        }}
-        sx={{
-          "& .MuiOutlinedInput-root": {
-            bgcolor: "rgb(25, 25, 25)",
-            position: "relative",
-            "& fieldset": {
-              borderColor: "rgb(64, 64, 64)",
+            ) : (
+              // Mobile: Expanded search field
+              <Slide direction="left" in={isMobileSearchExpanded} mountOnEnter unmountOnExit>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                  <TextField
+                    fullWidth
+                    placeholder="Search songs, artists, lyrics..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+                    size="small"
+                    autoFocus
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        fontSize: '0.875rem',
+                        height: 40,
+                        bgcolor: "rgb(25, 25, 25)",
+                        "& fieldset": {
+                          borderColor: "rgb(64, 64, 64)",
+                        },
+                        "&:hover fieldset": {
+                          borderColor: "rgb(82, 82, 82)",
+                        },
+                        "&.Mui-focused fieldset": {
+                          borderColor: "rgb(59, 130, 246)",
+                        },
+                      },
+                      "& .MuiInputBase-input": {
+                        color: "rgb(250, 250, 250)",
+                        "&::placeholder": {
+                          color: "rgb(163, 163, 163)",
+                          opacity: 1,
+                        },
+                      },
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ color: "rgb(163, 163, 163)", fontSize: '1.1rem' }} />
+                        </InputAdornment>
+                      ),
+                      endAdornment: searchQuery && (
+                        <InputAdornment position="end">
+                          <IconButton
+                            size="small"
+                            onClick={handleClearSearch}
+                            sx={{ color: "rgb(163, 163, 163)" }}
+                          >
+                            <ClearIcon />
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  <IconButton
+                    onClick={handleMobileSearchClose}
+                    sx={{
+                      color: "rgb(250, 250, 250)",
+                      p: 1,
+                      "&:hover": {
+                        bgcolor: "rgb(38, 38, 38)",
+                      },
+                    }}
+                  >
+                    <ClearIcon />
+                  </IconButton>
+                </Box>
+              </Slide>
+            )}
+          </>
+        ) : (
+        // Desktop: Full search field
+        <TextField
+          fullWidth
+          placeholder="Search songs, artists, lyrics..."
+          value={searchQuery}
+          onChange={handleSearchChange}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setTimeout(() => setIsFocused(false), 200)}
+          size="small"
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              fontSize: '0.9rem',
+              height: 44,
+              bgcolor: "rgb(25, 25, 25)",
+              position: "relative",
+              "& fieldset": {
+                borderColor: "rgb(64, 64, 64)",
+              },
+              "&:hover fieldset": {
+                borderColor: "rgb(82, 82, 82)",
+              },
+              "&.Mui-focused fieldset": {
+                borderColor: "rgb(59, 130, 246)",
+              },
             },
-            "&:hover fieldset": {
-              borderColor: "rgb(82, 82, 82)",
+            "& .MuiInputBase-input": {
+              color: "rgb(250, 250, 250)",
+              "&::placeholder": {
+                color: "rgb(163, 163, 163)",
+                opacity: 1,
+              },
             },
-            "&.Mui-focused fieldset": {
-              borderColor: "rgb(59, 130, 246)",
-            },
-            // No linear loader overlay needed - using solid loader on results
-          },
-          "& .MuiInputBase-input": {
-            color: "rgb(250, 250, 250)",
-            "&::placeholder": {
-              color: "rgb(163, 163, 163)",
-            },
-          },
-          // No keyframes needed - using solid loader on results
-        }}
-      />
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: "rgb(163, 163, 163)", fontSize: '1.25rem' }} />
+              </InputAdornment>
+            ),
+            endAdornment: searchQuery && (
+              <InputAdornment position="end">
+                <IconButton
+                  size="small"
+                  onClick={handleClearSearch}
+                  sx={{ color: "rgb(163, 163, 163)" }}
+                >
+                  <ClearIcon />
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+        />
+      )}
 
       {/* Search Dropdown */}
-      {showDropdown && (
+      {showDropdown && (!isMobile || isMobileSearchExpanded) && (
         <Paper
           sx={{
             position: "absolute",
@@ -199,7 +396,8 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
             borderRadius: 1,
             mt: 0.5,
             maxHeight: 500,
-            minWidth: { xs: 300, sm: 400, md: 500, lg: 600 },
+            minWidth: { xs: 280, sm: 400, md: 500, lg: 600 },
+            maxWidth: { xs: "90vw", sm: "none" },
             overflow: "auto",
             "&::-webkit-scrollbar": {
               width: 6,
@@ -447,5 +645,237 @@ export function SearchBar({ onSelectSong, songs = [], language }: SearchBarProps
         </Paper>
       )}
     </Box>
+
+    {/* Mobile Search Overlay Dialog */}
+    {isMobile && (
+      <Dialog
+        open={showMobileSearchOverlay}
+        onClose={handleMobileSearchBack}
+        fullScreen
+        sx={{
+          '& .MuiDialog-paper': {
+            bgcolor: 'rgb(10, 10, 10)',
+            color: 'rgb(250, 250, 250)',
+          },
+        }}
+      >
+        <DialogContent sx={{ p: 0, height: '100vh', display: 'flex', flexDirection: 'column' }}>
+          {/* Mobile Search Header */}
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            p: 2, 
+            borderBottom: '1px solid rgb(38, 38, 38)',
+            gap: 2
+          }}>
+            <IconButton
+              onClick={handleMobileSearchBack}
+              sx={{ color: 'rgb(250, 250, 250)' }}
+            >
+              <ArrowBackIcon />
+            </IconButton>
+            <TextField
+              fullWidth
+              placeholder="Search songs, artists, lyrics..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              autoFocus
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: 'rgb(25, 25, 25)',
+                  '& fieldset': {
+                    borderColor: 'rgb(64, 64, 64)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'rgb(82, 82, 82)',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: 'rgb(59, 130, 246)',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: 'rgb(250, 250, 250)',
+                  '&::placeholder': {
+                    color: 'rgb(163, 163, 163)',
+                    opacity: 1,
+                  },
+                },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: 'rgb(163, 163, 163)' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery && (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={handleClearSearch}
+                      sx={{ color: 'rgb(163, 163, 163)' }}
+                    >
+                      <ClearIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <IconButton
+              onClick={handleMobileSearchBack}
+              sx={{ color: 'rgb(250, 250, 250)' }}
+            >
+              <ClearIcon />
+            </IconButton>
+          </Box>
+
+          {/* Mobile Search Content */}
+          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+            {/* Recent Searches */}
+            {searchHistory.length > 0 && !searchQuery && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" sx={{ color: 'rgb(163, 163, 163)', mb: 2 }}>
+                  Recent Searches
+                </Typography>
+                <List>
+                  {searchHistory.map((query, index) => (
+                    <ListItem key={index} disablePadding>
+                      <ListItemButton
+                        onClick={() => handleSearchHistoryClick(query)}
+                        sx={{
+                          py: 1.5,
+                          px: 2,
+                          borderRadius: 1,
+                          '&:hover': {
+                            bgcolor: 'rgb(25, 25, 25)',
+                          },
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 40 }}>
+                          <HistoryIcon sx={{ color: 'rgb(163, 163, 163)' }} />
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={query}
+                          sx={{ color: 'rgb(250, 250, 250)' }}
+                        />
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteSearchHistory(query)
+                          }}
+                          sx={{ color: 'rgb(163, 163, 163)' }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            )}
+
+            {/* Search Suggestions */}
+            {searchSuggestions.length > 0 && !searchQuery && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" sx={{ color: 'rgb(163, 163, 163)', mb: 2 }}>
+                  Search Suggestions
+                </Typography>
+                <List>
+                  {searchSuggestions.map((suggestion, index) => (
+                    <ListItem key={index} disablePadding>
+                      <ListItemButton
+                        onClick={() => handleSearchHistoryClick(suggestion)}
+                        sx={{
+                          py: 1.5,
+                          px: 2,
+                          borderRadius: 1,
+                          '&:hover': {
+                            bgcolor: 'rgb(25, 25, 25)',
+                          },
+                        }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 40 }}>
+                          <SearchIcon sx={{ color: 'rgb(163, 163, 163)' }} />
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={suggestion}
+                          sx={{ color: 'rgb(250, 250, 250)' }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            )}
+
+            {/* Search Results */}
+            {searchQuery && (
+              <Box>
+                {isLoading && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                )}
+                
+                {results.length > 0 && (
+                  <List>
+                    {results.map((result) => (
+                      <ListItem key={result.song.id} disablePadding>
+                        <ListItemButton
+                          onClick={() => handleSelectSong(result.song)}
+                          sx={{
+                            py: 1.5,
+                            px: 2,
+                            borderRadius: 1,
+                            '&:hover': {
+                              bgcolor: 'rgb(25, 25, 25)',
+                            },
+                          }}
+                        >
+                          <ListItemAvatar>
+                            <Avatar
+                              src={result.song.thumbnail}
+                              sx={{
+                                width: 48,
+                                height: 48,
+                                bgcolor: 'rgb(38, 38, 38)',
+                                borderRadius: 1,
+                              }}
+                            >
+                              <PlayArrowIcon sx={{ color: 'rgb(163, 163, 163)' }} />
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={
+                              <Typography variant="body1" sx={{ color: 'rgb(250, 250, 250)', fontWeight: 500 }}>
+                                {result.song.titleTransliteration ? `${result.song.title} | ${result.song.titleTransliteration}` : result.song.title}
+                              </Typography>
+                            }
+                            secondary={
+                              <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)' }}>
+                                {result.song.artist.name} • {formatNumber(result.song.viewCount)} views
+                              </Typography>
+                            }
+                          />
+                        </ListItemButton>
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+
+                {!isLoading && results.length === 0 && searchQuery && (
+                  <Box sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography variant="body1" sx={{ color: 'rgb(163, 163, 163)' }}>
+                      No results found for "{searchQuery}"
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   )
 }
