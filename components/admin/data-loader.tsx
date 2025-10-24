@@ -22,6 +22,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Tabs,
+  Tab,
 } from '@mui/material'
 import {
   CloudUpload,
@@ -32,7 +34,10 @@ import {
   Person,
   Language,
   TrendingUp,
+  Upload,
+  Storage,
 } from '@mui/icons-material'
+import { ChunkedDataLoader } from './chunked-data-loader'
 
 interface LoadResult {
   created: number
@@ -60,6 +65,7 @@ export function DataLoader() {
   const [stats, setStats] = useState<DatabaseStats | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState(false)
+  const [activeTab, setActiveTab] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,91 +138,132 @@ export function DataLoader() {
     return colors[language] || '#95A5A6'
   }
 
+  const handleChunkedComplete = (results: any) => {
+    setResult({
+      created: results.totalCreated,
+      updated: results.totalUpdated,
+      deleted: results.totalDeleted,
+      errors: results.errors,
+      summary: {
+        totalProcessed: results.totalCreated + results.totalUpdated,
+        totalSongs: results.totalCreated + results.totalUpdated,
+        totalArtists: 0
+      }
+    })
+    fetchStats() // Refresh stats after loading
+  }
+
   return (
     <Box sx={{ p: 3, maxWidth: 1200, mx: 'auto' }}>
       <Typography variant="h4" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 3 }}>
         Data Loader
       </Typography>
 
-      <Grid container spacing={3}>
+      <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)', mb: 3 }}>
+        <Tabs 
+          value={activeTab} 
+          onChange={(e, newValue) => setActiveTab(newValue)}
+          sx={{ 
+            borderBottom: '1px solid rgb(38, 38, 38)',
+            '& .MuiTab-root': { color: 'rgb(163, 163, 163)' },
+            '& .Mui-selected': { color: 'rgb(59, 130, 246)' }
+          }}
+        >
+          <Tab 
+            icon={<Upload />} 
+            label="Standard Upload" 
+            iconPosition="start"
+            sx={{ textTransform: 'none' }}
+          />
+          <Tab 
+            icon={<Storage />} 
+            label="Chunked Upload (Large Files)" 
+            iconPosition="start"
+            sx={{ textTransform: 'none' }}
+          />
+        </Tabs>
+      </Card>
+
+      {activeTab === 0 && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {/* Upload Section */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
-                Load Song Data
-              </Typography>
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json"
-                onChange={handleFileUpload}
-                style={{ display: 'none' }}
-              />
+        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          <Box sx={{ flex: 1, minWidth: 300 }}>
+            <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
+                  Load Song Data
+                </Typography>
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                />
 
-              <Button
-                variant="contained"
-                startIcon={<CloudUpload />}
-                onClick={handleUploadClick}
-                disabled={loading}
-                sx={{
-                  bgcolor: 'rgb(59, 130, 246)',
-                  '&:hover': { bgcolor: 'rgb(37, 99, 235)' },
-                  mb: 2,
-                }}
-              >
-                {loading ? 'Loading...' : 'Upload JSON File'}
-              </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<CloudUpload />}
+                  onClick={handleUploadClick}
+                  disabled={loading}
+                  sx={{
+                    bgcolor: 'rgb(59, 130, 246)',
+                    '&:hover': { bgcolor: 'rgb(37, 99, 235)' },
+                    mb: 2,
+                  }}
+                >
+                  {loading ? 'Loading...' : 'Upload JSON File'}
+                </Button>
 
-              {loading && (
-                <Box sx={{ mt: 2 }}>
-                  <LinearProgress sx={{ bgcolor: 'rgb(38, 38, 38)' }} />
-                  <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)', mt: 1 }}>
-                    Processing data...
-                  </Typography>
-                </Box>
-              )}
+                {loading && (
+                  <Box sx={{ mt: 2 }}>
+                    <LinearProgress sx={{ bgcolor: 'rgb(38, 38, 38)' }} />
+                    <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)', mt: 1 }}>
+                      Processing data...
+                    </Typography>
+                  </Box>
+                )}
 
-              {error && (
-                <Alert severity="error" sx={{ mt: 2, bgcolor: 'rgb(30, 20, 20)' }}>
-                  {error}
-                </Alert>
-              )}
+                {error && (
+                  <Alert severity="error" sx={{ mt: 2, bgcolor: 'rgb(30, 20, 20)' }}>
+                    {error}
+                  </Alert>
+                )}
 
-              {result && (
-                <Alert severity="success" sx={{ mt: 2, bgcolor: 'rgb(20, 30, 20)' }}>
-                  <Typography variant="body2" sx={{ color: 'rgb(250, 250, 250)' }}>
-                    Data loaded successfully! Created: {result.created}, Updated: {result.updated}, Deleted: {result.deleted}
-                  </Typography>
-                  {result.errors.length > 0 && (
-                    <Button
-                      size="small"
-                      onClick={() => setShowDetails(true)}
-                      sx={{ color: 'rgb(59, 130, 246)', mt: 1 }}
-                    >
-                      View {result.errors.length} errors
-                    </Button>
-                  )}
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
+                {result && (
+                  <Alert severity="success" sx={{ mt: 2, bgcolor: 'rgb(20, 30, 20)' }}>
+                    <Typography variant="body2" sx={{ color: 'rgb(250, 250, 250)' }}>
+                      Data loaded successfully! Created: {result.created}, Updated: {result.updated}, Deleted: {result.deleted}
+                    </Typography>
+                    {result.errors.length > 0 && (
+                      <Button
+                        size="small"
+                        onClick={() => setShowDetails(true)}
+                        sx={{ color: 'rgb(59, 130, 246)', mt: 1 }}
+                      >
+                        View {result.errors.length} errors
+                      </Button>
+                    )}
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
 
-        {/* Database Stats */}
-        <Grid item xs={12} md={6}>
-          <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
-                Database Statistics
-              </Typography>
-              
-              {stats ? (
-                <Box>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <Paper sx={{ p: 2, bgcolor: 'rgb(38, 38, 38)', textAlign: 'center' }}>
+          {/* Database Stats */}
+          <Box sx={{ flex: 1, minWidth: 300 }}>
+            <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
+                  Database Statistics
+                </Typography>
+                
+                {stats ? (
+                  <Box>
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                      <Paper sx={{ p: 2, bgcolor: 'rgb(38, 38, 38)', textAlign: 'center', flex: 1 }}>
                         <MusicNote sx={{ color: 'rgb(59, 130, 246)', fontSize: 40, mb: 1 }} />
                         <Typography variant="h4" sx={{ color: 'rgb(250, 250, 250)' }}>
                           {stats.totalSongs}
@@ -225,9 +272,7 @@ export function DataLoader() {
                           Total Songs
                         </Typography>
                       </Paper>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Paper sx={{ p: 2, bgcolor: 'rgb(38, 38, 38)', textAlign: 'center' }}>
+                      <Paper sx={{ p: 2, bgcolor: 'rgb(38, 38, 38)', textAlign: 'center', flex: 1 }}>
                         <Person sx={{ color: 'rgb(59, 130, 246)', fontSize: 40, mb: 1 }} />
                         <Typography variant="h4" sx={{ color: 'rgb(250, 250, 250)' }}>
                           {stats.totalArtists}
@@ -236,63 +281,66 @@ export function DataLoader() {
                           Total Artists
                         </Typography>
                       </Paper>
-                    </Grid>
-                  </Grid>
+                    </Box>
 
-                  <Typography variant="subtitle1" sx={{ color: 'rgb(250, 250, 250)', mt: 2, mb: 1 }}>
-                    Language Distribution
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {Object.entries(stats.languageDistribution).map(([language, count]) => (
-                      <Chip
-                        key={language}
-                        label={`${language}: ${count}`}
-                        sx={{
-                          bgcolor: getLanguageColor(language),
-                          color: 'white',
-                          fontWeight: 500,
-                        }}
-                      />
-                    ))}
+                    <Typography variant="subtitle1" sx={{ color: 'rgb(250, 250, 250)', mt: 2, mb: 1 }}>
+                      Language Distribution
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      {Object.entries(stats.languageDistribution).map(([language, count]) => (
+                        <Chip
+                          key={language}
+                          label={`${language}: ${count}`}
+                          sx={{
+                            bgcolor: getLanguageColor(language),
+                            color: 'white',
+                            fontWeight: 500,
+                          }}
+                        />
+                      ))}
+                    </Box>
                   </Box>
-                </Box>
-              ) : (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                  <CircularProgress />
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
+                ) : (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress />
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+        </Box>
 
         {/* Recent Songs */}
         {stats?.recentSongs && (
-          <Grid item xs={12}>
-            <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
-                  Recent Songs
-                </Typography>
-                <List dense>
-                  {stats.recentSongs.slice(0, 5).map((song: any, index: number) => (
-                    <ListItem key={song.id} sx={{ px: 0 }}>
-                      <ListItemIcon>
-                        <MusicNote sx={{ color: 'rgb(163, 163, 163)' }} />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={song.title}
-                        secondary={`${song.language} • ${new Date(song.created_at).toLocaleDateString()}`}
-                        primaryTypographyProps={{ color: 'rgb(250, 250, 250)' }}
-                        secondaryTypographyProps={{ color: 'rgb(163, 163, 163)' }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              </CardContent>
-            </Card>
-          </Grid>
+          <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
+                Recent Songs
+              </Typography>
+              <List dense>
+                {stats.recentSongs.slice(0, 5).map((song: any, index: number) => (
+                  <ListItem key={song.id} sx={{ px: 0 }}>
+                    <ListItemIcon>
+                      <MusicNote sx={{ color: 'rgb(163, 163, 163)' }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={song.title}
+                      secondary={`${song.language} • ${new Date(song.created_at).toLocaleDateString()}`}
+                      primaryTypographyProps={{ color: 'rgb(250, 250, 250)' }}
+                      secondaryTypographyProps={{ color: 'rgb(163, 163, 163)' }}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </CardContent>
+          </Card>
         )}
-      </Grid>
+        </Box>
+      )}
+
+      {activeTab === 1 && (
+        <ChunkedDataLoader onComplete={handleChunkedComplete} />
+      )}
 
       {/* Error Details Dialog */}
       <Dialog open={showDetails} onClose={() => setShowDetails(false)} maxWidth="md" fullWidth>
