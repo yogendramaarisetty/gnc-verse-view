@@ -456,7 +456,7 @@ export function useLazySongList() {
 
   const isSongFullyLoaded = useCallback((songId: string): boolean => {
     const song = songs.find(s => s.id === songId)
-    return song ? (song.lyrics.length > 0 && song.chords.length > 0) : false
+    return song ? (song.lyrics.length > 0 || song.chords.length > 0) : false
   }, [songs])
 
   const isSongLoading = useCallback((songId: string): boolean => {

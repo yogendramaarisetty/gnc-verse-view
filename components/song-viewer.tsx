@@ -236,7 +236,9 @@ export function SongViewer({
           'Audio',
           'Telugu LyricsEnglish LyricsAudio',
           'Telugu LyricsEnglish Lyrics',
-          'English LyricsAudio'
+          'English LyricsAudio',
+          'Download Lyrics as: PPT',
+          'Share this:WhatsAppTweet'
         ]
         
         // Only filter out exact matches, not lines that start with these words

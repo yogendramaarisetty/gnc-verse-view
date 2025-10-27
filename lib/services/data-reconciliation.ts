@@ -306,35 +306,31 @@ export class DataReconciliationService {
   }
 
   private parseLyrics(lyrics: string): string[] {
-    return lyrics
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => {
-        // Filter out empty lines and common headers
-        if (line.length === 0) return false
-        
-        // Filter out common headers that appear in the data
-        const headersToFilter = [
-          'Telugu Lyrics',
-          'English Lyrics', 
-          'Audio',
-          'Telugu LyricsEnglish LyricsAudio',
-          'Telugu LyricsEnglish Lyrics',
-          'English LyricsAudio'
-        ]
-        
-        return !headersToFilter.includes(line)
-      })
-  }
-
-  private parseEnglishLyrics(lyrics: string): string[] {
     const lines = lyrics
       .split('\n')
       .map(line => line.trim())
       .filter(line => line.length > 0) // Remove empty lines
     
-    // Skip the first 2 lines for English lyrics (usually headers)
-    const contentLines = lines.slice(2)
+    // Find the start of actual lyrics content
+    let startIndex = 0
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      // Skip header lines
+      if (line.includes('Telugu Lyrics') || 
+          line.includes('English Lyrics') || 
+          line.includes('Audio') ||
+          line.includes('Download Lyrics') ||
+          line.includes('Share this:')) {
+        continue
+      }
+      // If we find a line that looks like actual lyrics, start from there
+      if (line.length > 3 && !line.includes('Lyrics') && !line.includes('Audio')) {
+        startIndex = i
+        break
+      }
+    }
+    
+    const contentLines = lines.slice(startIndex)
     
     return contentLines.filter(line => {
       // Filter out common headers that appear in the data
@@ -344,10 +340,56 @@ export class DataReconciliationService {
         'Audio',
         'Telugu LyricsEnglish LyricsAudio',
         'Telugu LyricsEnglish Lyrics',
-        'English LyricsAudio'
+        'English LyricsAudio',
+        'Download Lyrics as: PPT',
+        'Share this:WhatsAppTweet'
       ]
       
-      return !headersToFilter.includes(line)
+      return !headersToFilter.includes(line) && line.length > 0
+    })
+  }
+
+  private parseEnglishLyrics(lyrics: string): string[] {
+    const lines = lyrics
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0) // Remove empty lines
+    
+    // Find the start of actual lyrics content by looking for common patterns
+    let startIndex = 0
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      // Skip header lines
+      if (line.includes('Telugu Lyrics') || 
+          line.includes('English Lyrics') || 
+          line.includes('Audio') ||
+          line.includes('Download Lyrics') ||
+          line.includes('Share this:')) {
+        continue
+      }
+      // If we find a line that looks like actual lyrics, start from there
+      if (line.length > 3 && !line.includes('Lyrics') && !line.includes('Audio')) {
+        startIndex = i
+        break
+      }
+    }
+    
+    const contentLines = lines.slice(startIndex)
+    
+    return contentLines.filter(line => {
+      // Filter out common headers that appear in the data
+      const headersToFilter = [
+        'Telugu Lyrics',
+        'English Lyrics', 
+        'Audio',
+        'Telugu LyricsEnglish LyricsAudio',
+        'Telugu LyricsEnglish Lyrics',
+        'English LyricsAudio',
+        'Download Lyrics as: PPT',
+        'Share this:WhatsAppTweet'
+      ]
+      
+      return !headersToFilter.includes(line) && line.length > 0
     })
   }
 
