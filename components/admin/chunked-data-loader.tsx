@@ -1,11 +1,28 @@
 'use client'
 
 import React, { useState, useCallback } from 'react'
-import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { CheckCircle, XCircle, Upload, Loader2, FileText, Database } from 'lucide-react'
+import {
+  Button,
+  LinearProgress,
+  Card,
+  CardContent,
+  Typography,
+  Alert,
+  Box,
+  Stack,
+  Chip,
+  CircularProgress,
+  IconButton,
+  Tooltip
+} from '@mui/material'
+import {
+  CheckCircle,
+  Cancel,
+  Upload,
+  Description,
+  Storage,
+  Refresh
+} from '@mui/icons-material'
 
 interface ChunkedDataLoaderProps {
   onComplete?: (results: any) => void
@@ -205,125 +222,182 @@ export function ChunkedDataLoader({ onComplete }: ChunkedDataLoaderProps) {
   const hasErrors = uploadProgress.errors.length > 0
 
   return (
-    <div className="space-y-6">
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            Chunked Data Loader
-          </CardTitle>
-          <CardDescription>
+        <CardContent sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <Storage />
+            <Typography variant="h6">Chunked Data Loader</Typography>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Upload large JSON files by processing them in small chunks to avoid Vercel's payload limits.
             Recommended for files larger than 4MB.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </Typography>
+          
           {!uploadProgress.isUploading && !isComplete && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
+            <Stack spacing={2}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <input
                   type="file"
                   accept=".json"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="flex-1"
+                  style={{ flex: 1 }}
                 />
                 <Button 
                   onClick={handleFileUpload} 
                   disabled={!file}
-                  className="flex items-center gap-2"
+                  variant="contained"
+                  startIcon={<Upload />}
                 >
-                  <Upload className="h-4 w-4" />
                   Upload & Process
                 </Button>
-              </div>
+              </Box>
               
               {file && (
-                <div className="text-sm text-muted-foreground">
+                <Typography variant="body2" color="text.secondary">
                   Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                </div>
+                </Typography>
               )}
-            </div>
+            </Stack>
           )}
 
           {uploadProgress.isUploading && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Processing chunk {uploadProgress.currentChunk} of {uploadProgress.totalChunks}</span>
-                  <span>{Math.round(uploadProgress.progress)}%</span>
-                </div>
-                <Progress value={uploadProgress.progress} className="w-full" />
-              </div>
+            <Stack spacing={2}>
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body2">
+                    Processing chunk {uploadProgress.currentChunk} of {uploadProgress.totalChunks}
+                  </Typography>
+                  <Typography variant="body2">
+                    {Math.round(uploadProgress.progress)}%
+                  </Typography>
+                </Box>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={uploadProgress.progress} 
+                  sx={{ width: '100%' }}
+                />
+              </Box>
               
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Processing songs in chunks of {CHUNK_SIZE}...</span>
-              </div>
-            </div>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={16} />
+                <Typography variant="body2" color="text.secondary">
+                  Processing songs in chunks of {CHUNK_SIZE}...
+                </Typography>
+              </Box>
+            </Stack>
           )}
 
           {isComplete && (
-            <div className="space-y-4">
-              <Alert className={hasErrors ? "border-yellow-200 bg-yellow-50" : "border-green-200 bg-green-50"}>
-                <div className="flex items-center gap-2">
-                  {hasErrors ? (
-                    <XCircle className="h-4 w-4 text-yellow-600" />
-                  ) : (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  )}
-                  <AlertDescription>
-                    {hasErrors ? 'Upload completed with errors' : 'Upload completed successfully!'}
-                  </AlertDescription>
-                </div>
+            <Stack spacing={2}>
+              <Alert 
+                severity={hasErrors ? "warning" : "success"}
+                icon={hasErrors ? <Cancel /> : <CheckCircle />}
+              >
+                <Typography variant="body2">
+                  {hasErrors ? 'Upload completed with errors' : 'Upload completed successfully!'}
+                </Typography>
               </Alert>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">
+              <Box sx={{ 
+                display: 'grid', 
+                gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+                gap: 2 
+              }}>
+                <Box sx={{ 
+                  textAlign: 'center', 
+                  p: 2, 
+                  bgcolor: 'success.light', 
+                  borderRadius: 1,
+                  color: 'success.contrastText'
+                }}>
+                  <Typography variant="h4" fontWeight="bold">
                     {uploadProgress.results.reduce((sum, r) => sum + r.created, 0)}
-                  </div>
-                  <div className="text-sm text-green-700">Created</div>
-                </div>
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">
+                  </Typography>
+                  <Typography variant="body2">Created</Typography>
+                </Box>
+                <Box sx={{ 
+                  textAlign: 'center', 
+                  p: 2, 
+                  bgcolor: 'info.light', 
+                  borderRadius: 1,
+                  color: 'info.contrastText'
+                }}>
+                  <Typography variant="h4" fontWeight="bold">
                     {uploadProgress.results.reduce((sum, r) => sum + r.updated, 0)}
-                  </div>
-                  <div className="text-sm text-blue-700">Updated</div>
-                </div>
-                <div className="text-center p-3 bg-red-50 rounded-lg">
-                  <div className="text-2xl font-bold text-red-600">
+                  </Typography>
+                  <Typography variant="body2">Updated</Typography>
+                </Box>
+                <Box sx={{ 
+                  textAlign: 'center', 
+                  p: 2, 
+                  bgcolor: 'error.light', 
+                  borderRadius: 1,
+                  color: 'error.contrastText'
+                }}>
+                  <Typography variant="h4" fontWeight="bold">
                     {uploadProgress.results.reduce((sum, r) => sum + r.deleted, 0)}
-                  </div>
-                  <div className="text-sm text-red-700">Deleted</div>
-                </div>
-                <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                  <div className="text-2xl font-bold text-yellow-600">
+                  </Typography>
+                  <Typography variant="body2">Deleted</Typography>
+                </Box>
+                <Box sx={{ 
+                  textAlign: 'center', 
+                  p: 2, 
+                  bgcolor: 'warning.light', 
+                  borderRadius: 1,
+                  color: 'warning.contrastText'
+                }}>
+                  <Typography variant="h4" fontWeight="bold">
                     {uploadProgress.results.reduce((sum, r) => sum + r.errors.length, 0) + uploadProgress.errors.length}
-                  </div>
-                  <div className="text-sm text-yellow-700">Errors</div>
-                </div>
-              </div>
+                  </Typography>
+                  <Typography variant="body2">Errors</Typography>
+                </Box>
+              </Box>
 
               {uploadProgress.errors.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-yellow-800">Errors:</h4>
-                  <div className="max-h-32 overflow-y-auto space-y-1">
-                    {uploadProgress.errors.map((error, index) => (
-                      <div key={index} className="text-sm text-yellow-700 bg-yellow-100 p-2 rounded">
-                        {error}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <Box>
+                  <Typography variant="subtitle2" color="warning.main" sx={{ mb: 1 }}>
+                    Errors:
+                  </Typography>
+                  <Box sx={{ 
+                    maxHeight: 128, 
+                    overflow: 'auto',
+                    border: 1,
+                    borderColor: 'warning.light',
+                    borderRadius: 1,
+                    p: 1
+                  }}>
+                    <Stack spacing={0.5}>
+                      {uploadProgress.errors.map((error, index) => (
+                        <Box 
+                          key={index} 
+                          sx={{ 
+                            p: 1, 
+                            bgcolor: 'warning.light', 
+                            borderRadius: 0.5,
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                          {error}
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+                </Box>
               )}
 
-              <Button onClick={resetUpload} variant="outline" className="w-full">
+              <Button 
+                onClick={resetUpload} 
+                variant="outlined" 
+                fullWidth
+                startIcon={<Refresh />}
+              >
                 Upload Another File
               </Button>
-            </div>
+            </Stack>
           )}
         </CardContent>
       </Card>
-    </div>
+    </Box>
   )
 }
