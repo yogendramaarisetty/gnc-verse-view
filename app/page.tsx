@@ -625,30 +625,32 @@ export default function Home() {
                   letterSpacing: "-0.5px"
                 }}
               >
-                GNC Music
+                GNC Worship Tools
               </Typography>
             </Box>
           </Box>
 
-          {/* Center - Search Bar (Desktop only) */}
-          {!isMobile && (
-            <Box sx={{ 
-              flex: 1, 
-              maxWidth: 600,
-              mx: 4,
-              display: "flex",
-              alignItems: "center"
-            }}>
-              <SearchBar 
-                onSelectSong={handleSelectSongFromSearch} 
-                songs={combinedSongs}
-                language={selectedLanguage}
-                onMobileSearchClick={() => {
-                  // This will be handled by the SearchBar component
-                }}
-              />
-            </Box>
-          )}
+          {/* Center - Search Bar */}
+          <Box sx={{ 
+            flex: 1, 
+            maxWidth: 600,
+            mx: 4,
+            display: "flex",
+            alignItems: "center",
+            // Hide on mobile but keep it rendered for mobile search functionality
+            visibility: isMobile ? "hidden" : "visible",
+            position: isMobile ? "absolute" : "relative",
+            left: isMobile ? "-9999px" : "auto"
+          }}>
+            <SearchBar 
+              onSelectSong={handleSelectSongFromSearch} 
+              songs={combinedSongs}
+              language={selectedLanguage}
+              onMobileSearchClick={() => {
+                // This will be handled by the SearchBar component
+              }}
+            />
+          </Box>
 
           {/* Right Side - Icons + User */}
           <Box sx={{ 
@@ -662,8 +664,12 @@ export default function Home() {
                 color="inherit"
                 onClick={() => {
                   // Trigger mobile search overlay
-                  if ((window as any).triggerMobileSearch) {
-                    (window as any).triggerMobileSearch()
+                  console.log('🔍 Mobile search icon clicked')
+                  if (typeof (window as any).triggerMobileSearch === 'function') {
+                    console.log('✅ triggerMobileSearch function found, calling it')
+                    ;(window as any).triggerMobileSearch()
+                  } else {
+                    console.log('❌ triggerMobileSearch function not found')
                   }
                 }}
                 sx={{ 
@@ -760,6 +766,9 @@ export default function Home() {
                 borderRight: "1px solid rgb(38, 38, 38)",
                 mt: "64px",
                 height: "calc(100vh - 64px)",
+                overflow: "hidden", // Ensure proper scroll container
+                display: "flex",
+                flexDirection: "column",
               },
             }}
           >
@@ -804,6 +813,9 @@ export default function Home() {
                 borderRight: "1px solid rgb(38, 38, 38)",
                 mt: "64px",
                 height: "calc(100vh - 64px)",
+                overflow: "hidden", // Ensure proper scroll container
+                display: "flex",
+                flexDirection: "column",
               },
             }}
             open

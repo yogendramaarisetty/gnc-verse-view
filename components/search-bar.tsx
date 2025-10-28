@@ -59,6 +59,11 @@ export function SearchBar({ onSelectSong, songs = [], language, onMobileSearchCl
   const [showDropdown, setShowDropdown] = useState(false)
   const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false)
   const [showMobileSearchOverlay, setShowMobileSearchOverlay] = useState(false)
+
+  // Debug mobile search overlay state changes
+  useEffect(() => {
+    console.log('📱 Mobile search overlay state changed:', showMobileSearchOverlay)
+  }, [showMobileSearchOverlay])
   const [searchHistory, setSearchHistory] = useState<string[]>([])
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([])
   const searchRef = useRef<HTMLDivElement>(null)
@@ -222,10 +227,13 @@ export function SearchBar({ onSelectSong, songs = [], language, onMobileSearchCl
     if (onMobileSearchClick) {
       // Store the trigger function globally so the navbar can access it
       (window as any).triggerMobileSearch = () => {
+        console.log('📱 triggerMobileSearch called, isMobile:', isMobile)
         if (isMobile) {
+          console.log('✅ Setting showMobileSearchOverlay to true')
           setShowMobileSearchOverlay(true)
         }
       }
+      console.log('🔧 triggerMobileSearch function registered')
     }
   }, [onMobileSearchClick, isMobile])
 
@@ -819,47 +827,52 @@ export function SearchBar({ onSelectSong, songs = [], language, onMobileSearchCl
                 
                 {results.length > 0 && (
                   <List>
-                    {results.map((result) => (
-                      <ListItem key={result.song.id} disablePadding>
-                        <ListItemButton
-                          onClick={() => handleSelectSong(result.song)}
-                          sx={{
-                            py: 1.5,
-                            px: 2,
-                            borderRadius: 1,
-                            '&:hover': {
-                              bgcolor: 'rgb(25, 25, 25)',
-                            },
-                          }}
-                        >
-                          <ListItemAvatar>
-                            <Avatar
-                              src={result.song.thumbnail}
+                    {getTopResults(15) // Limit results for mobile performance
+                      .filter(result => result && result.song)
+                      .map((result, index) => {
+                        const song = result.song
+                        return (
+                          <ListItem key={song?.id || `mobile-result-${index}`} disablePadding>
+                            <ListItemButton
+                              onClick={() => song && handleSelectSong(song)}
                               sx={{
-                                width: 48,
-                                height: 48,
-                                bgcolor: 'rgb(38, 38, 38)',
+                                py: 1.5,
+                                px: 2,
                                 borderRadius: 1,
+                                '&:hover': {
+                                  bgcolor: 'rgb(25, 25, 25)',
+                                },
                               }}
                             >
-                              <PlayArrowIcon sx={{ color: 'rgb(163, 163, 163)' }} />
-                            </Avatar>
-                          </ListItemAvatar>
-                          <ListItemText
-                            primary={
-                              <Typography variant="body1" sx={{ color: 'rgb(250, 250, 250)', fontWeight: 500 }}>
-                                {result.song.titleTransliteration ? `${result.song.title} | ${result.song.titleTransliteration}` : result.song.title}
-                              </Typography>
-                            }
-                            secondary={
-                              <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)' }}>
-                                {result.song.artist.name} • {formatNumber(result.song.viewCount)} views
-                              </Typography>
-                            }
-                          />
-                        </ListItemButton>
-                      </ListItem>
-                    ))}
+                              <ListItemAvatar>
+                                <Avatar
+                                  src={song?.thumbnail}
+                                  sx={{
+                                    width: 48,
+                                    height: 48,
+                                    bgcolor: 'rgb(38, 38, 38)',
+                                    borderRadius: 1,
+                                  }}
+                                >
+                                  <PlayArrowIcon sx={{ color: 'rgb(163, 163, 163)' }} />
+                                </Avatar>
+                              </ListItemAvatar>
+                              <ListItemText
+                                primary={
+                                  <Typography variant="body1" sx={{ color: 'rgb(250, 250, 250)', fontWeight: 500 }}>
+                                    {song?.titleTransliteration ? `${song?.title} | ${song.titleTransliteration}` : song?.title}
+                                  </Typography>
+                                }
+                                secondary={
+                                  <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)' }}>
+                                    {song?.artist?.name} • {formatNumber(song?.viewCount || 0)} views
+                                  </Typography>
+                                }
+                              />
+                            </ListItemButton>
+                          </ListItem>
+                        )
+                      })}
                   </List>
                 )}
 

@@ -1290,7 +1290,7 @@ export function SongViewer({
                     whiteSpace: "pre-wrap",
                     textAlign: textAlign,
                     fontFamily: getTeluguFontFamily(),
-                    fontWeight: lyricsTab === 0 && isBold ? 'bold' : 400,
+                    fontWeight: isBold ? 'bold' : 400,
                   }}
                 >
                   {line || "\u00A0"}

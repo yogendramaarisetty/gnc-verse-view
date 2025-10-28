@@ -238,7 +238,7 @@ export function useOptimizedSearch() {
                 totalSongs: 0,
                 totalViews: 0,
               },
-              language: cachedSong.language,
+              language: (cachedSong.language as "Telugu" | "Malayalam" | "English" | "Hindi" | "Tamil" | "Bengali" | "Kannada") || "Telugu",
               tags: cachedSong.tags,
               lyrics: [], // Not cached
               chords: [], // Not cached
@@ -313,7 +313,7 @@ export function useOptimizedSearch() {
       }
 
       // Cache miss or insufficient data - search backend
-      const backendResults = await searchSongs(query, language, 20, 0)
+      const backendResults = await searchSongs(query, language)
       setResults(backendResults)
       
       // Add new songs to cache
@@ -377,7 +377,7 @@ export function useLazySongList() {
               totalSongs: 0,
               totalViews: 0,
             },
-            language: metadata.language,
+            language: (metadata.language as "Telugu" | "Malayalam" | "English" | "Hindi" | "Tamil" | "Bengali" | "Kannada") || "Telugu",
             tags: metadata.tags,
             lyrics: [], // Empty - will be loaded on demand
             chords: [], // Empty - will be loaded on demand
@@ -432,14 +432,16 @@ export function useLazySongList() {
       const fullSong = await fetchSongById(songId)
       
       // Cache the full song data
-      songCache.addFullSong(fullSong)
-      
-      // Update the song in the list with full data
-      setSongs(prevSongs => 
-        prevSongs.map(song => 
-          song.id === songId ? fullSong : song
+      if (fullSong) {
+        songCache.addFullSong(fullSong)
+        
+        // Update the song in the list with full data
+        setSongs(prevSongs => 
+          prevSongs.map(song => 
+            song.id === songId ? fullSong : song
+          )
         )
-      )
+      }
       
       return fullSong
     } catch (err) {
@@ -456,7 +458,7 @@ export function useLazySongList() {
 
   const isSongFullyLoaded = useCallback((songId: string): boolean => {
     const song = songs.find(s => s.id === songId)
-    return song ? (song.lyrics.length > 0 || song.chords.length > 0) : false
+    return song ? (song.lyrics.length > 0 || (song.chords && song.chords.length > 0) || false) : false
   }, [songs])
 
   const isSongLoading = useCallback((songId: string): boolean => {
@@ -528,6 +530,7 @@ export function useInfiniteSongs(language?: string) {
   const currentPageRef = useRef(0)
 
   const ITEMS_PER_PAGE = 20
+  const MOBILE_ITEMS_PER_PAGE = 15 // Smaller page size for mobile
 
   const loadSongs = useCallback(async (language?: string, reset = false) => {
     if (reset) {
@@ -544,8 +547,12 @@ export function useInfiniteSongs(language?: string) {
     setError(null)
 
     try {
-      console.log('🔄 Loading songs:', { language, page, offset: page * ITEMS_PER_PAGE })
-      const url = `/api/songs?language=${language || 'all'}&limit=${ITEMS_PER_PAGE}&offset=${page * ITEMS_PER_PAGE}`
+      // Detect mobile device and use smaller page size
+      const isMobile = window.innerWidth < 768
+      const pageSize = isMobile ? MOBILE_ITEMS_PER_PAGE : ITEMS_PER_PAGE
+      
+      console.log('🔄 Loading songs:', { language, page, offset: page * pageSize, isMobile, pageSize })
+      const url = `/api/songs?language=${language || 'all'}&limit=${pageSize}&offset=${page * pageSize}`
       console.log('🌐 Fetching URL:', url)
       
       const response = await fetch(url)
@@ -568,7 +575,7 @@ export function useInfiniteSongs(language?: string) {
       })
 
       if (reset) {
-        console.log('🔄 Resetting songs:', { count: newSongs.length, titles: newSongs.map(s => s.title) })
+        console.log('🔄 Resetting songs:', { count: newSongs.length, titles: newSongs.map((s: Song) => s.title) })
         setSongs(newSongs)
         setTotalCount(data.totalCount || 0)
         setCurrentPage(1)
@@ -576,8 +583,8 @@ export function useInfiniteSongs(language?: string) {
       } else {
         // Deduplicate songs by ID to prevent duplicates
         setSongs(prev => {
-          const existingIds = new Set(prev.map(song => song.id))
-          const uniqueNewSongs = newSongs.filter(song => !existingIds.has(song.id))
+          const existingIds = new Set(prev.map((song: Song) => song.id))
+          const uniqueNewSongs = newSongs.filter((song: Song) => !existingIds.has(song.id))
           console.log('➕ Adding more songs:', { 
             prevCount: prev.length, 
             newCount: uniqueNewSongs.length,
@@ -589,7 +596,7 @@ export function useInfiniteSongs(language?: string) {
         currentPageRef.current += 1
       }
 
-      setHasMore(data.hasMore || newSongs.length === ITEMS_PER_PAGE)
+      setHasMore(data.hasMore || newSongs.length === pageSize)
 
       // Add to cache
       songCache.addSongs(newSongs)

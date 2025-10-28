@@ -104,10 +104,14 @@ export function InfiniteSongList({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !loadingMore && onLoadMore) {
+          console.log('🔄 Intersection observer triggered load more')
           onLoadMore()
         }
       },
-      { threshold: 0.1 }
+      { 
+        threshold: 0.1,
+        rootMargin: '50px' // Add margin to trigger earlier on mobile
+      }
     )
 
     if (observerTarget.current) {
@@ -118,6 +122,58 @@ export function InfiniteSongList({
       if (observerTarget.current) {
         observer.unobserve(observerTarget.current)
       }
+    }
+  }, [hasMore, loadingMore, onLoadMore])
+
+  // Additional scroll listener for mobile devices
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!hasMore || loadingMore || !onLoadMore) return
+      
+      const target = observerTarget.current
+      if (!target) return
+      
+      const rect = target.getBoundingClientRect()
+      const isVisible = rect.top < window.innerHeight && rect.bottom > 0
+      
+      if (isVisible) {
+        console.log('📱 Mobile scroll triggered load more')
+        onLoadMore()
+      }
+    }
+
+    // Add scroll listener for mobile devices
+    const scrollContainer = document.querySelector('.MuiDrawer-paper') || document
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
+    
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+    }
+  }, [hasMore, loadingMore, onLoadMore])
+
+  // Mobile touch event handler for better mobile experience
+  useEffect(() => {
+    const handleTouchEnd = () => {
+      if (!hasMore || loadingMore || !onLoadMore) return
+      
+      const target = observerTarget.current
+      if (!target) return
+      
+      const rect = target.getBoundingClientRect()
+      const isVisible = rect.top < window.innerHeight && rect.bottom > 0
+      
+      if (isVisible) {
+        console.log('📱 Mobile touch triggered load more')
+        onLoadMore()
+      }
+    }
+
+    // Add touch event listener for mobile devices
+    const scrollContainer = document.querySelector('.MuiDrawer-paper') || document
+    scrollContainer.addEventListener('touchend', handleTouchEnd, { passive: true })
+    
+    return () => {
+      scrollContainer.removeEventListener('touchend', handleTouchEnd)
     }
   }, [hasMore, loadingMore, onLoadMore])
 

@@ -236,7 +236,12 @@ export function FilterSidebar({
       </Box>
 
       {/* Content Area - Song List */}
-      <Box sx={{ flex: 1, overflow: "hidden" }}>
+      <Box sx={{ 
+        flex: 1, 
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column"
+      }}>
         {filterMode === 'all' ? (
           <InfiniteSongList
             songs={allSongs || []}
