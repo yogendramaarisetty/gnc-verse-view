@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
     // Initialize reconciliation service
     const reconciliationService = new DataReconciliationService()
     
-    // Process the chunk
-    const result = await reconciliationService.reconcileData(songs)
+    // Process the chunk (skip cleanup for chunked uploads to prevent deletion)
+    const result = await reconciliationService.reconcileDataChunked(songs)
 
     // Log the results
     console.log(`📊 Chunk ${chunkIndex + 1} completed:`, {

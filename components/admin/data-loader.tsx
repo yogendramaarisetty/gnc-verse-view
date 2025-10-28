@@ -9,31 +9,20 @@ import {
   Typography,
   LinearProgress,
   Alert,
-  Chip,
-  Grid,
-  Paper,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Divider,
-  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Tabs,
   Tab,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material'
 import {
   CloudUpload,
-  CheckCircle,
   Error as ErrorIcon,
-  Info,
-  MusicNote,
-  Person,
-  Language,
-  TrendingUp,
   Upload,
   Storage,
 } from '@mui/icons-material'
@@ -51,18 +40,9 @@ interface LoadResult {
   }
 }
 
-interface DatabaseStats {
-  totalSongs: number
-  totalArtists: number
-  recentSongs: any[]
-  topArtists: any[]
-  languageDistribution: Record<string, number>
-}
-
 export function DataLoader() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<LoadResult | null>(null)
-  const [stats, setStats] = useState<DatabaseStats | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showDetails, setShowDetails] = useState(false)
   const [activeTab, setActiveTab] = useState(0)
@@ -99,7 +79,6 @@ export function DataLoader() {
       }
 
       setResult(data.result)
-      await fetchStats() // Refresh stats after loading
 
     } catch (err) {
       setError(err && typeof err === 'object' && 'message' in err ? String(err.message) : 'Unknown error occurred')
@@ -108,34 +87,8 @@ export function DataLoader() {
     }
   }
 
-  const fetchStats = async () => {
-    try {
-      const response = await fetch('/api/admin/load-data')
-      const data = await response.json()
-      
-      if (response.ok) {
-        setStats(data.stats)
-      }
-    } catch (err) {
-      console.error('Failed to fetch stats:', err)
-    }
-  }
-
   const handleUploadClick = () => {
     fileInputRef.current?.click()
-  }
-
-  const getLanguageColor = (language: string) => {
-    const colors: Record<string, string> = {
-      'Telugu': '#FF6B6B',
-      'Malayalam': '#4ECDC4',
-      'Tamil': '#45B7D1',
-      'Hindi': '#96CEB4',
-      'Bengali': '#FFEAA7',
-      'Kannada': '#DDA0DD',
-      'English': '#98D8C8',
-    }
-    return colors[language] || '#95A5A6'
   }
 
   const handleChunkedComplete = (results: any) => {
@@ -150,7 +103,6 @@ export function DataLoader() {
         totalArtists: 0
       }
     })
-    fetchStats() // Refresh stats after loading
   }
 
   return (
@@ -187,154 +139,67 @@ export function DataLoader() {
       {activeTab === 0 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {/* Upload Section */}
-        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-          <Box sx={{ flex: 1, minWidth: 300 }}>
-            <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
-                  Load Song Data
+        <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
+              Load Song Data
+            </Typography>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
+
+            <Button
+              variant="contained"
+              startIcon={<CloudUpload />}
+              onClick={handleUploadClick}
+              disabled={loading}
+              sx={{
+                bgcolor: 'rgb(59, 130, 246)',
+                '&:hover': { bgcolor: 'rgb(37, 99, 235)' },
+                mb: 2,
+              }}
+            >
+              {loading ? 'Loading...' : 'Upload JSON File'}
+            </Button>
+
+            {loading && (
+              <Box sx={{ mt: 2 }}>
+                <LinearProgress sx={{ bgcolor: 'rgb(38, 38, 38)' }} />
+                <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)', mt: 1 }}>
+                  Processing data...
                 </Typography>
-                
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  onChange={handleFileUpload}
-                  style={{ display: 'none' }}
-                />
+              </Box>
+            )}
 
-                <Button
-                  variant="contained"
-                  startIcon={<CloudUpload />}
-                  onClick={handleUploadClick}
-                  disabled={loading}
-                  sx={{
-                    bgcolor: 'rgb(59, 130, 246)',
-                    '&:hover': { bgcolor: 'rgb(37, 99, 235)' },
-                    mb: 2,
-                  }}
-                >
-                  {loading ? 'Loading...' : 'Upload JSON File'}
-                </Button>
+            {error && (
+              <Alert severity="error" sx={{ mt: 2, bgcolor: 'rgb(30, 20, 20)' }}>
+                {error}
+              </Alert>
+            )}
 
-                {loading && (
-                  <Box sx={{ mt: 2 }}>
-                    <LinearProgress sx={{ bgcolor: 'rgb(38, 38, 38)' }} />
-                    <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)', mt: 1 }}>
-                      Processing data...
-                    </Typography>
-                  </Box>
-                )}
-
-                {error && (
-                  <Alert severity="error" sx={{ mt: 2, bgcolor: 'rgb(30, 20, 20)' }}>
-                    {error}
-                  </Alert>
-                )}
-
-                {result && (
-                  <Alert severity="success" sx={{ mt: 2, bgcolor: 'rgb(20, 30, 20)' }}>
-                    <Typography variant="body2" sx={{ color: 'rgb(250, 250, 250)' }}>
-                      Data loaded successfully! Created: {result.created}, Updated: {result.updated}, Deleted: {result.deleted}
-                    </Typography>
-                    {result.errors.length > 0 && (
-                      <Button
-                        size="small"
-                        onClick={() => setShowDetails(true)}
-                        sx={{ color: 'rgb(59, 130, 246)', mt: 1 }}
-                      >
-                        View {result.errors.length} errors
-                      </Button>
-                    )}
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
-          </Box>
-
-          {/* Database Stats */}
-          <Box sx={{ flex: 1, minWidth: 300 }}>
-            <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
-                  Database Statistics
+            {result && (
+              <Alert severity="success" sx={{ mt: 2, bgcolor: 'rgb(20, 30, 20)' }}>
+                <Typography variant="body2" sx={{ color: 'rgb(250, 250, 250)' }}>
+                  Data loaded successfully! Created: {result.created}, Updated: {result.updated}, Deleted: {result.deleted}
                 </Typography>
-                
-                {stats ? (
-                  <Box>
-                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                      <Paper sx={{ p: 2, bgcolor: 'rgb(38, 38, 38)', textAlign: 'center', flex: 1 }}>
-                        <MusicNote sx={{ color: 'rgb(59, 130, 246)', fontSize: 40, mb: 1 }} />
-                        <Typography variant="h4" sx={{ color: 'rgb(250, 250, 250)' }}>
-                          {stats.totalSongs}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)' }}>
-                          Total Songs
-                        </Typography>
-                      </Paper>
-                      <Paper sx={{ p: 2, bgcolor: 'rgb(38, 38, 38)', textAlign: 'center', flex: 1 }}>
-                        <Person sx={{ color: 'rgb(59, 130, 246)', fontSize: 40, mb: 1 }} />
-                        <Typography variant="h4" sx={{ color: 'rgb(250, 250, 250)' }}>
-                          {stats.totalArtists}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: 'rgb(163, 163, 163)' }}>
-                          Total Artists
-                        </Typography>
-                      </Paper>
-                    </Box>
-
-                    <Typography variant="subtitle1" sx={{ color: 'rgb(250, 250, 250)', mt: 2, mb: 1 }}>
-                      Language Distribution
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {Object.entries(stats.languageDistribution).map(([language, count]) => (
-                        <Chip
-                          key={language}
-                          label={`${language}: ${count}`}
-                          sx={{
-                            bgcolor: getLanguageColor(language),
-                            color: 'white',
-                            fontWeight: 500,
-                          }}
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                    <CircularProgress />
-                  </Box>
+                {result.errors.length > 0 && (
+                  <Button
+                    size="small"
+                    onClick={() => setShowDetails(true)}
+                    sx={{ color: 'rgb(59, 130, 246)', mt: 1 }}
+                  >
+                    View {result.errors.length} errors
+                  </Button>
                 )}
-              </CardContent>
-            </Card>
-          </Box>
-        </Box>
-
-        {/* Recent Songs */}
-        {stats?.recentSongs && (
-          <Card sx={{ bgcolor: 'rgb(20, 20, 20)', border: '1px solid rgb(38, 38, 38)' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom sx={{ color: 'rgb(250, 250, 250)', mb: 2 }}>
-                Recent Songs
-              </Typography>
-              <List dense>
-                {stats.recentSongs.slice(0, 5).map((song: any, index: number) => (
-                  <ListItem key={song.id} sx={{ px: 0 }}>
-                    <ListItemIcon>
-                      <MusicNote sx={{ color: 'rgb(163, 163, 163)' }} />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={song.title}
-                      secondary={`${song.language} • ${new Date(song.created_at).toLocaleDateString()}`}
-                      primaryTypographyProps={{ color: 'rgb(250, 250, 250)' }}
-                      secondaryTypographyProps={{ color: 'rgb(163, 163, 163)' }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </CardContent>
-          </Card>
-        )}
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
         </Box>
       )}
 

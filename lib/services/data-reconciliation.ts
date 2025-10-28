@@ -88,6 +88,54 @@ export class DataReconciliationService {
     return result
   }
 
+  // Chunked reconciliation method (skips cleanup to prevent deletion)
+  async reconcileDataChunked(songs: SongData[]): Promise<ReconciliationResult> {
+    console.log('🔄 Starting chunked data reconciliation (no cleanup)...')
+    
+    const result: ReconciliationResult = {
+      created: 0,
+      updated: 0,
+      deleted: 0,
+      errors: [],
+      summary: {
+        totalProcessed: 0,
+        totalSongs: 0,
+        totalArtists: 0
+      }
+    }
+
+    try {
+      result.summary.totalProcessed = songs.length
+
+      // Build caches for efficient lookups
+      await this.buildCaches()
+
+      // Process each song
+      for (const song of songs) {
+        try {
+          await this.processSong(song, result)
+        } catch (error) {
+          result.errors.push(`Song ${song.id} (${song.title}): ${error}`)
+        }
+      }
+
+      // Skip cleanup for chunked uploads to prevent deletion of songs from other chunks
+      console.log('⚠️ Skipping cleanup for chunked upload to prevent deletion')
+
+      // Update artist counts
+      await this.updateArtistCounts()
+
+      console.log('✅ Chunked data reconciliation completed!')
+      this.logResults(result)
+
+    } catch (error) {
+      result.errors.push(`Fatal error: ${error}`)
+      console.error('💥 Chunked reconciliation failed:', error)
+    }
+
+    return result
+  }
+
   private async buildCaches(): Promise<void> {
     console.log('📊 Building caches...')
     
