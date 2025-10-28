@@ -92,6 +92,14 @@ export function SearchBar({ onSelectSong, songs = [], language, onMobileSearchCl
     serverDebounceMs: 100
   })
 
+  // Warn if search is not working properly
+  useEffect(() => {
+    if (error) {
+      console.warn('⚠️ Search initialization error:', error)
+      console.log('ℹ️ Falling back to server-only search (may be slower)')
+    }
+  }, [error])
+
   // Handle search input with instant search (no debounce for client-side)
   const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value

@@ -66,29 +66,70 @@ export function useHybridSearch({
       try {
         setLoading(true)
         
-        // Fetch all songs for in-memory indexing
-        const response = await fetch('/api/songs?limit=10000')
+        // Log environment details
+        console.log('🚀 Initializing search engine:', {
+          environment: process.env.NODE_ENV,
+          isVercel: process.env.VERCEL === '1',
+          timestamp: new Date().toISOString()
+        })
+        
+        // Fetch songs with timeout
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 15000) // 15s timeout
+        
+        // Environment-specific limit to avoid Vercel timeout
+        const limit = process.env.VERCEL === '1' ? 5000 : 10000
+        const response = await fetch(`/api/songs?limit=${limit}`, { 
+          signal: controller.signal 
+        })
+        clearTimeout(timeout)
+        
         if (!response.ok) {
-          throw new Error('Failed to load songs for search')
+          throw new Error(`API returned ${response.status}: ${response.statusText}`)
         }
 
         const data = await response.json()
         const songs = data.songs || []
 
+        // Log loaded songs details
+        console.log('📊 Songs loaded for search:', {
+          count: songs.length,
+          sampleTitles: songs.slice(0, 5).map((s: any) => ({
+            title: s.title,
+            transliteration: s.titleTransliteration
+          })),
+          hasBangaram: songs.some((s: any) => 
+            s.titleTransliteration?.toLowerCase().includes('bangaram')
+          )
+        })
+
         if (songs.length === 0) {
-          console.warn('No songs available for search indexing')
+          console.warn('⚠️ No songs loaded - using server-only search mode')
+          isInitialized.current = true
           return
         }
 
-        // Initialize search engine
+        // Initialize with progress tracking
+        const startTime = Date.now()
         searchEngine.current = new InMemorySearchEngine()
         await searchEngine.current.initialize(songs)
+        const initTime = Date.now() - startTime
+        
+        console.log('✅ Search engine initialized:', {
+          songCount: songs.length,
+          initTime: `${initTime}ms`
+        })
         
         isInitialized.current = true
         
       } catch (err) {
-        console.error('Failed to initialize search engine:', err)
+        console.error('❌ Search engine initialization failed:', {
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined
+        })
         setError(err instanceof Error ? err.message : 'Search initialization failed')
+        // Mark as initialized to allow server-only mode
+        isInitialized.current = true
       } finally {
         setLoading(false)
       }
@@ -171,6 +212,14 @@ export function useHybridSearch({
       return
     }
 
+    // Log search details
+    console.log('🔍 Search initiated:', {
+      query: searchQuery,
+      hasSearchEngine: !!searchEngine.current,
+      environment: process.env.NODE_ENV,
+      isVercel: process.env.VERCEL === '1'
+    })
+
     // Generate unique search ID to prevent race conditions
     const searchId = `${Date.now()}-${Math.random()}`
     currentSearchId.current = searchId
@@ -183,58 +232,82 @@ export function useHybridSearch({
       clearTimeout(serverDebounceTimer.current)
     }
 
-    // 1. Instant client-side search (no debounce)
-    const clientResults = performClientSearch(searchQuery)
-    
-    if (clientResults.length > 0) {
-      setResults(clientResults)
+    // 1. Try client-side search
+    if (searchEngine.current) {
+      const clientResults = performClientSearch(searchQuery)
       
-      // If we have good client results, we're done
-      if (clientResults.length >= 5 || clientResults.some(r => r.score >= 800)) {
-        setIsSearching(false)
-        currentSearchId.current = null
-        return
-      }
-    }
-
-    // 2. Server search as fallback (with debounce)
-    if (enableServerFallback) {
-      serverDebounceTimer.current = setTimeout(async () => {
-        // Check if this is still the current search
-        if (currentSearchId.current !== searchId) {
+      console.log('📱 Client search results:', {
+        count: clientResults.length,
+        topResults: clientResults.slice(0, 3).map(r => ({
+          title: r.song.title,
+          transliteration: r.song.titleTransliteration,
+          score: r.score,
+          matchType: r.matchType,
+          field: r.field
+        }))
+      })
+      
+      if (clientResults.length > 0) {
+        setResults(clientResults)
+        
+        if (clientResults.length >= 5 || clientResults.some(r => r.score >= 800)) {
+          console.log('✅ Using client results (sufficient quality)')
+          setIsSearching(false)
+          currentSearchId.current = null
           return
         }
+      }
+    } else {
+      console.warn('⚠️ Client search engine not available')
+    }
+
+    // 2. Server search fallback with logging
+    if (enableServerFallback) {
+      serverDebounceTimer.current = setTimeout(async () => {
+        if (currentSearchId.current !== searchId) return
         
         try {
+          console.log('🌐 Starting server search')
           const serverResults = await performServerSearch(searchQuery)
           
-          // Check again if this is still the current search
-          if (currentSearchId.current !== searchId) {
-            return
-          }
+          console.log('🌐 Server search results:', {
+            count: serverResults.length,
+            topResults: serverResults.slice(0, 3).map(r => ({
+              title: r.song.title,
+              transliteration: r.song.titleTransliteration,
+              score: r.score
+            }))
+          })
           
-          if (serverResults.length > 0) {
-            // Merge client and server results, removing duplicates
-            const existingSongIds = new Set(clientResults.map(r => r.song.id))
-            const newServerResults = serverResults.filter(r => !existingSongIds.has(r.song.id))
+          // Merge and log final results
+          if (currentSearchId.current === searchId) {
+            const clientResults = searchEngine.current ? performClientSearch(searchQuery) : []
+            const existingIds = new Set(clientResults.map(r => r.song.id))
+            const newServerResults = serverResults.filter(r => !existingIds.has(r.song.id))
             
             const mergedResults = [...clientResults, ...newServerResults]
               .sort((a, b) => b.score - a.score)
               .slice(0, maxResults)
             
+            console.log('🔄 Final merged results:', {
+              clientCount: clientResults.length,
+              serverCount: newServerResults.length,
+              totalCount: mergedResults.length,
+              topResult: mergedResults[0] ? {
+                title: mergedResults[0].song.title,
+                score: mergedResults[0].score,
+                source: mergedResults[0].source
+              } : null
+            })
+            
             setResults(mergedResults)
-          } else if (clientResults.length === 0) {
-            // No results from either source
-            setResults([])
           }
-          
         } catch (err) {
-          // Keep client results if server fails
-          if (clientResults.length > 0) {
-            setResults(clientResults)
+          console.error('❌ Server search failed:', err)
+          if (searchEngine.current) {
+            setResults(performClientSearch(searchQuery))
           }
         } finally {
-          // Only set isSearching to false if this is still the current search
           if (currentSearchId.current === searchId) {
             setIsSearching(false)
             currentSearchId.current = null

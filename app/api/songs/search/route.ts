@@ -70,6 +70,13 @@ function calculateLiteralMatchScore(query: string, text: string): number {
   // Contains query gets medium-high score
   if (textLower.includes(queryLower)) return 800
   
+  // Check if query matches start of any word in text (for "Bangaram" in "Bangaram Adugaledu")
+  const textWords = textLower.split(/\s+/)
+  for (const word of textWords) {
+    if (word === queryLower) return 950 // Word exact match
+    if (word.startsWith(queryLower)) return 850 // Word prefix match
+  }
+  
   return 0
 }
 
