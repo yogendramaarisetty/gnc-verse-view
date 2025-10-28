@@ -1,0 +1,63 @@
+name: Build Only
+
+on:
+  push:
+    branches: [ main, enhance ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run database migrations
+      env:
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      run: |
+        echo "🔄 Running database migrations..."
+        npm run migrate || echo "⚠️ Migrations skipped (no credentials)"
+        
+    - name: Check migration status
+      env:
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      run: |
+        echo "📊 Checking migration status..."
+        npm run migrate:status || echo "⚠️ Migration status check skipped (no credentials)"
+        
+    - name: Build project
+      env:
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key' }}
+      run: npm run build
+      
+    - name: Build Success Summary
+      run: |
+        echo "🎉 Build completed successfully!"
+        echo "📦 Build artifacts are ready for deployment"
+        echo ""
+        echo "🚀 To deploy your application:"
+        echo "   1. Go to https://vercel.com"
+        echo "   2. Import your GitHub repository"
+        echo "   3. Configure environment variables:"
+        echo "      - NEXT_PUBLIC_SUPABASE_URL"
+        echo "      - NEXT_PUBLIC_SUPABASE_ANON_KEY"
+        echo "      - SUPABASE_SERVICE_ROLE_KEY"
+        echo "   4. Deploy automatically"
+        echo ""
+        echo "📚 See VERCEL_DEPLOYMENT_GUIDE.md for detailed instructions"

@@ -23,13 +23,14 @@ import {
   CardMedia,
 } from "@mui/material"
 import SearchIcon from "@mui/icons-material/Search"
-import StarIcon from "@mui/icons-material/Star"
-import StarBorderIcon from "@mui/icons-material/StarBorder"
+import FavoriteIcon from "@mui/icons-material/Favorite"
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder"
 import PlayArrowIcon from "@mui/icons-material/PlayArrow"
 import ThumbUpIcon from "@mui/icons-material/ThumbUp"
 import VisibilityIcon from "@mui/icons-material/Visibility"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import type { Song } from "@/lib/types"
+import type { HistorySong } from "@/lib/api/history"
 import { TAGS, MUSICAL_KEYS, ARTISTS } from "@/lib/song-data"
 import { storage } from "@/lib/storage"
 import type { ViewMode } from "./language-sidebar"
@@ -40,6 +41,7 @@ interface EnhancedSongListProps {
   selectedSongId?: string
   selectedLanguage: string
   viewMode: ViewMode
+  history?: HistorySong[]
 }
 
 export function EnhancedSongList({
@@ -48,6 +50,7 @@ export function EnhancedSongList({
   selectedSongId,
   selectedLanguage,
   viewMode,
+  history,
 }: EnhancedSongListProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTag, setSelectedTag] = useState("All")
@@ -61,8 +64,30 @@ export function EnhancedSongList({
     setRecentlyViewed(storage.getRecentlyViewed())
   }, [])
 
+  // Utility function to deduplicate songs by ID
+  const deduplicateSongs = (songs: Song[]): Song[] => {
+    const seen = new Set<string>()
+    return songs.filter(song => {
+      if (seen.has(song.id)) {
+        return false
+      }
+      seen.add(song.id)
+      return true
+    })
+  }
+
   const filteredSongs = useMemo(() => {
-    let filtered = songs
+    // First deduplicate songs by ID to prevent duplicates
+    const uniqueSongs = deduplicateSongs(songs)
+    
+    console.log('🔍 EnhancedSongList deduplication:', {
+      originalCount: songs.length,
+      uniqueCount: uniqueSongs.length,
+      removedDuplicates: songs.length - uniqueSongs.length,
+      hasDuplicates: songs.length !== new Set(songs.map(s => s.id)).size
+    })
+    
+    let filtered = uniqueSongs
 
     // Apply view mode filters
     if (viewMode === "trending") {
@@ -70,23 +95,28 @@ export function EnhancedSongList({
     } else if (viewMode === "favorites") {
       filtered = filtered.filter((s) => favorites.includes(s.id))
     } else if (viewMode === "recent") {
-      const recentSongs = recentlyViewed.map((id) => songs.find((s) => s.id === id)).filter(Boolean) as Song[]
-      return recentSongs
-    } else if (viewMode === "new-releases") {
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-      filtered = filtered.filter((s) => new Date(s.releaseDate) > thirtyDaysAgo)
+      // Use database history if available, otherwise fall back to localStorage
+      if (history && history.length > 0) {
+        const recentSongs = history.map((historyItem) => 
+          songs.find((s) => s.id === historyItem.id)
+        ).filter(Boolean) as Song[]
+        filtered = recentSongs
+      } else {
+        // Fallback to localStorage for backward compatibility
+        const recentSongs = recentlyViewed.map((id) => songs.find((s) => s.id === id)).filter(Boolean) as Song[]
+        filtered = recentSongs
+      }
     } else if (viewMode === "all-time-hits") {
       filtered = [...filtered].sort((a, b) => b.youtubeViews - a.youtubeViews).slice(0, 20)
-    } else if (viewMode === "top-artists") {
-      const topArtists = ARTISTS.sort((a, b) => b.totalViews - a.totalViews).slice(0, 5)
-      filtered = filtered.filter((s) => topArtists.some((a) => a.id === s.artist.id))
     } else if (viewMode === "all") {
       // Language filter only applies in "all" mode
       filtered = filtered.filter((s) => s.language === selectedLanguage)
+    } else if (viewMode === "all-songs") {
+      // All songs mode - show all songs for the selected language
+      filtered = filtered.filter((s) => s.language === selectedLanguage)
     }
 
-    // Search filter
+    // Search filter - Apply to all view modes
     if (searchQuery) {
       const searchLower = searchQuery.toLowerCase()
       filtered = filtered.filter(
@@ -122,6 +152,7 @@ export function EnhancedSongList({
     selectedArtist,
     favorites,
     recentlyViewed,
+    history,
     viewMode,
     selectedLanguage,
   ])
@@ -138,6 +169,25 @@ export function EnhancedSongList({
     return num.toString()
   }
 
+  const getSearchPlaceholder = (): string => {
+    switch (viewMode) {
+      case "recent":
+        return "Search Recent Songs"
+      case "favorites":
+        return "Search Favorites"
+      case "trending":
+        return "Search Trending Songs"
+      case "all-time-hits":
+        return "Search All Time Hits"
+      case "playlists":
+        return "Search Playlists"
+      case "all":
+        return `Search ${selectedLanguage} Songs`
+      default:
+        return "Search songs, lyrics, artist..."
+    }
+  }
+
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column", bgcolor: "rgb(20, 20, 20)" }}>
       {/* Search */}
@@ -145,7 +195,7 @@ export function EnhancedSongList({
         <TextField
           fullWidth
           size="small"
-          placeholder="Search songs, lyrics, artist..."
+          placeholder={getSearchPlaceholder()}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           InputProps={{
@@ -262,9 +312,9 @@ export function EnhancedSongList({
                     edge="end"
                     size="small"
                     onClick={(e) => handleToggleFavorite(song.id, e)}
-                    sx={{ color: favorites.includes(song.id) ? "rgb(234, 179, 8)" : "rgb(163, 163, 163)" }}
+                    sx={{ color: favorites.includes(song.id) ? "#e91e63" : "rgb(163, 163, 163)" }}
                   >
-                    {favorites.includes(song.id) ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+                    {favorites.includes(song.id) ? <FavoriteIcon fontSize="small" /> : <FavoriteBorderIcon fontSize="small" />}
                   </IconButton>
                 }
               >
@@ -272,10 +322,11 @@ export function EnhancedSongList({
                   selected={selectedSongId === song.id}
                   onClick={() => onSelectSong(song)}
                   sx={{
-                    py: 1,
-                    px: 1.5,
+                    py: 0.5,
+                    px: 1,
+                    minHeight: 48,
                     display: "flex",
-                    gap: 1.5,
+                    gap: 1,
                     "&.Mui-selected": {
                       bgcolor: "rgb(38, 38, 38)",
                       borderLeft: "3px solid rgb(59, 130, 246)",
@@ -290,8 +341,8 @@ export function EnhancedSongList({
                     image={song.thumbnail}
                     alt={song.title}
                     sx={{
-                      width: 56,
-                      height: 56,
+                      width: 40,
+                      height: 40,
                       borderRadius: 1,
                       objectFit: "cover",
                       flexShrink: 0,
@@ -299,62 +350,15 @@ export function EnhancedSongList({
                   />
                   <ListItemText
                     primary={
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                        <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}>
-                          {song.title}
-                        </Typography>
-                        {song.trending && <TrendingUpIcon sx={{ fontSize: "0.9rem", color: "rgb(239, 68, 68)" }} />}
-                      </Box>
+                      <Typography variant="body2" sx={{ color: "rgb(250, 250, 250)", fontWeight: 500 }}>
+                        {song.titleTransliteration ? `${song.title} | ${song.titleTransliteration}` : song.title}
+                        {song.trending && <TrendingUpIcon sx={{ fontSize: "0.9rem", color: "rgb(239, 68, 68)", verticalAlign: "middle", ml: 0.5 }} />}
+                      </Typography>
                     }
                     secondary={
-                      <Stack spacing={0.25}>
-                        {song.titleTransliteration && (
-                          <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem" }}>
-                            {song.titleTransliteration}
-                          </Typography>
-                        )}
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                          <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem" }}>
-                            {song.artist.name}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem" }}>
-                            •
-                          </Typography>
-                          <Chip
-                            label={song.originalKey}
-                            size="small"
-                            sx={{
-                              height: "16px",
-                              fontSize: "0.65rem",
-                              bgcolor: "rgb(59, 130, 246)",
-                              color: "white",
-                              "& .MuiChip-label": { px: 0.75 },
-                            }}
-                          />
-                        </Box>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.25 }}>
-                          {song.hasVideo && (
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-                              <PlayArrowIcon sx={{ fontSize: "0.75rem", color: "rgb(163, 163, 163)" }} />
-                              <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.7rem" }}>
-                                {formatNumber(song.youtubeViews)}
-                              </Typography>
-                            </Box>
-                          )}
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-                            <ThumbUpIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
-                            <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.7rem" }}>
-                              {formatNumber(song.youtubeLikes)}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-                            <VisibilityIcon sx={{ fontSize: "0.7rem", color: "rgb(163, 163, 163)" }} />
-                            <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.7rem" }}>
-                              {formatNumber(song.viewCount)}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </Stack>
+                      <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)", fontSize: "0.75rem" }}>
+                        {song.artist.name} • {formatNumber(song.viewCount)} views
+                      </Typography>
                     }
                   />
                 </ListItemButton>

@@ -40,7 +40,7 @@ export function SongList({ songs, onSelectSong, selectedSongId }: SongListProps)
 
   // Load bookmarks on mount
   useState(() => {
-    setBookmarks(storage.getBookmarks())
+    setBookmarks(storage.getFavorites())
   })
 
   const filteredSongs = useMemo(() => {
@@ -50,7 +50,7 @@ export function SongList({ songs, onSelectSong, selectedSongId }: SongListProps)
       const matchesSearch =
         song.title.toLowerCase().includes(searchLower) ||
         song.titleTransliteration?.toLowerCase().includes(searchLower) ||
-        song.author.toLowerCase().includes(searchLower) ||
+        song.artist.name.toLowerCase().includes(searchLower) ||
         song.lyrics.some((line) => line.toLowerCase().includes(searchLower))
 
       // Language filter
@@ -68,8 +68,8 @@ export function SongList({ songs, onSelectSong, selectedSongId }: SongListProps)
 
   const handleToggleBookmark = (songId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    storage.toggleBookmark(songId)
-    setBookmarks(storage.getBookmarks())
+    storage.toggleFavorite(songId)
+    setBookmarks(storage.getFavorites())
   }
 
   return (
@@ -225,7 +225,7 @@ export function SongList({ songs, onSelectSong, selectedSongId }: SongListProps)
                           </Typography>
                         )}
                         <Typography variant="caption" sx={{ color: "rgb(163, 163, 163)" }}>
-                          {song.author} • {song.language}
+                          {song.artist.name} • {song.language}
                         </Typography>
                       </Stack>
                     }

@@ -25,13 +25,24 @@ import ShareIcon from "@mui/icons-material/Share"
 import PlaylistPlayIcon from "@mui/icons-material/PlaylistPlay"
 import type { Playlist, Song } from "@/lib/types"
 import { storage } from "@/lib/storage"
+import { useAuth } from "@/lib/hooks/useAuth"
+import { useRouter } from "next/navigation"
 
 interface PlaylistManagerProps {
   songs: Song[]
   onSelectPlaylist: (playlist: Playlist) => void
+  onCreatePlaylist?: (name: string, description: string) => void
+  playlists?: Playlist[]
 }
 
-export function PlaylistManager({ songs, onSelectPlaylist }: PlaylistManagerProps) {
+export function PlaylistManager({ 
+  songs, 
+  onSelectPlaylist, 
+  onCreatePlaylist: propOnCreatePlaylist,
+  playlists: propPlaylists 
+}: PlaylistManagerProps) {
+  const { user } = useAuth()
+  const router = useRouter()
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newPlaylistName, setNewPlaylistName] = useState("")
@@ -40,13 +51,28 @@ export function PlaylistManager({ songs, onSelectPlaylist }: PlaylistManagerProp
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null)
 
   useEffect(() => {
-    setPlaylists(storage.getPlaylists())
-  }, [])
+    if (propPlaylists) {
+      setPlaylists(propPlaylists)
+    } else {
+      setPlaylists(storage.getPlaylists())
+    }
+  }, [propPlaylists])
 
   const handleCreatePlaylist = () => {
+    if (!user) {
+      // Redirect to login if not authenticated
+      router.push('/login')
+      return
+    }
+
     if (newPlaylistName.trim()) {
-      const playlist = storage.createPlaylist(newPlaylistName, newPlaylistDescription)
-      setPlaylists(storage.getPlaylists())
+      if (propOnCreatePlaylist) {
+        propOnCreatePlaylist(newPlaylistName, newPlaylistDescription)
+      } else {
+        // Fallback to local storage
+        const playlist = storage.createPlaylist(newPlaylistName, newPlaylistDescription)
+        setPlaylists(storage.getPlaylists())
+      }
       setNewPlaylistName("")
       setNewPlaylistDescription("")
       setCreateDialogOpen(false)
@@ -140,8 +166,9 @@ export function PlaylistManager({ songs, onSelectPlaylist }: PlaylistManagerProp
                   <ListItemButton
                     onClick={() => onSelectPlaylist(playlist)}
                     sx={{
-                      py: 1.5,
-                      px: 2,
+                      py: 0.75,
+                      px: 1.5,
+                      minHeight: 48,
                       "&:hover": { bgcolor: "rgb(30, 30, 30)" },
                     }}
                   >
